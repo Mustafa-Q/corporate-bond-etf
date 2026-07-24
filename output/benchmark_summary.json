@@ -1,0 +1,16 @@
+{
+  "as_of_date": "2026-07-22",
+  "n_bond_holdings": 3143,
+  "n_unique_issuers": 591,
+  "cash_derivatives_weight_pct": 0.7419,
+  "weighted_avg_years_to_maturity": 13.056,
+  "weighted_avg_effective_duration": 7.857,
+  "weighted_avg_mod_duration": 7.966,
+  "weighted_avg_ytm_pct": 5.6054,
+  "weighted_avg_ytw_pct": 5.5963,
+  "weighted_avg_coupon_pct": 4.69,
+  "top10_issuer_weight_pct": 19.048,
+  "issuer_hhi": 70.97,
+  "effective_n_issuers": 140.9,
+  "rating_distribution": "NOT AVAILABLE - deferred (no rating field in source data)"
+}
