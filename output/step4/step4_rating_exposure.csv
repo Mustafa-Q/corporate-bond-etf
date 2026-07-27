@@ -1,0 +1,4 @@
+category,benchmark_%,no_liq_N50_%,with_liq_N50_%,no_liq_N100_%,with_liq_N100_%,no_liq_N200_%,with_liq_N200_%
+A-or-better,59.56,59.519,61.4,59.56,59.963,59.56,60.137
+BBB,37.628,37.721,35.6,37.628,37.761,37.628,37.663
+Unknown/Ambiguous,2.812,2.76,3.0,2.812,2.276,2.812,2.2
