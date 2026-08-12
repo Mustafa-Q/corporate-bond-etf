@@ -1,0 +1,79 @@
+{
+  "sizes": [
+    50,
+    100,
+    200
+  ],
+  "benchmark": {
+    "ytm_%": 5.6054,
+    "duration": 7.8573
+  },
+  "q1_accuracy_loss": {
+    "method": "Pareto-efficient (liquidity_score, mismatch) points per dimension per N; see step5_pareto_frontier.csv",
+    "note": "Sector L1 and issuer concentration are the steepest frontiers (biggest pp cost per unit of liquidity gained); rating and duration frontiers are comparatively flat."
+  },
+  "q2_yield_impact": {
+    "50": {
+      "min_ytm_%": 5.5634,
+      "max_ytm_%": 5.7278,
+      "range_bp": 16.4,
+      "max_abs_diff_vs_benchmark_pp": 0.1224
+    },
+    "100": {
+      "min_ytm_%": 5.6054,
+      "max_ytm_%": 5.661,
+      "range_bp": 5.6,
+      "max_abs_diff_vs_benchmark_pp": 0.0556
+    },
+    "200": {
+      "min_ytm_%": 5.6054,
+      "max_ytm_%": 5.6689,
+      "range_bp": 6.3,
+      "max_abs_diff_vs_benchmark_pp": 0.0635
+    }
+  },
+  "q3_hardest_to_preserve": {
+    "pooled_ranking_normalized_0_100": {
+      "Rating L1 mismatch (pp)": 67.1,
+      "YTM abs. diff (pp)": 54.3,
+      "Top-10 issuer weight (%)": 52.2,
+      "Issuer HHI": 47.0,
+      "Sector L1 mismatch (pp)": 45.1,
+      "Duration abs. diff (yrs)": 44.5,
+      "Maturity L1 mismatch (pp)": 29.9
+    },
+    "pooled_mean_corr_with_liquidity": {
+      "Duration abs. diff (yrs)": 0.49,
+      "Issuer HHI": 0.74,
+      "Maturity L1 mismatch (pp)": 0.32,
+      "Rating L1 mismatch (pp)": 0.4,
+      "Sector L1 mismatch (pp)": 0.41,
+      "Top-10 issuer weight (%)": 0.97,
+      "YTM abs. diff (pp)": 0.52
+    },
+    "low_confidence_dimensions": [
+      "Duration abs. diff (yrs)",
+      "Maturity L1 mismatch (pp)",
+      "Rating L1 mismatch (pp)",
+      "Sector L1 mismatch (pp)"
+    ],
+    "note": "Each dimension min-max scaled to 0-100 using its global range across the entire grid (all N x all lambda); degradation = normalized(worst in grid) - normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both ~0 at lambda=0, which broke a naive %-change ranking). low_confidence_dimensions have mean correlation with liquidity_score < 0.5: their ranking is driven more by a single noisy grid point (documented lambda-sweep noise) than a consistent trend, and should be read with that caveat -- e.g. Rating L1 ranks high mainly from one outlier at N=50/lambda=1.0, consistent with Step 4's finding that rating exposure barely moved. Sector L1 mismatch and issuer concentration (Top-10 weight, HHI) have the strongest, most consistent correlations (corr > 0.8 at N=100/200) and are the most reliably \"hardest to preserve.\""
+  },
+  "q4_holdings_count_scaling": {
+    "50": {
+      "liquidity_range_in_grid": 0.0414,
+      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 31.03,
+      "n_grid_points": 8
+    },
+    "100": {
+      "liquidity_range_in_grid": 0.0532,
+      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 97.89,
+      "n_grid_points": 8
+    },
+    "200": {
+      "liquidity_range_in_grid": 0.0567,
+      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 94.86,
+      "n_grid_points": 8
+    }
+  }
+}
