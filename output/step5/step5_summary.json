@@ -20,60 +20,72 @@
       "max_abs_diff_vs_benchmark_pp": 0.1224
     },
     "100": {
-      "min_ytm_%": 5.6054,
-      "max_ytm_%": 5.661,
-      "range_bp": 5.6,
-      "max_abs_diff_vs_benchmark_pp": 0.0556
+      "min_ytm_%": 5.5892,
+      "max_ytm_%": 5.6712,
+      "range_bp": 8.2,
+      "max_abs_diff_vs_benchmark_pp": 0.0657
     },
     "200": {
-      "min_ytm_%": 5.6054,
+      "min_ytm_%": 5.597,
       "max_ytm_%": 5.6689,
-      "range_bp": 6.3,
+      "range_bp": 7.2,
       "max_abs_diff_vs_benchmark_pp": 0.0635
     }
   },
   "q3_hardest_to_preserve": {
     "pooled_ranking_normalized_0_100": {
-      "Rating L1 mismatch (pp)": 67.1,
-      "YTM abs. diff (pp)": 54.3,
-      "Top-10 issuer weight (%)": 52.2,
-      "Issuer HHI": 47.0,
-      "Sector L1 mismatch (pp)": 45.1,
-      "Duration abs. diff (yrs)": 44.5,
-      "Maturity L1 mismatch (pp)": 29.9
+      "YTM abs. diff (pp)": 51.3,
+      "Rating L1 mismatch (pp)": 44.9,
+      "Sector L1 mismatch (pp)": 44.8,
+      "Top-10 issuer weight (%)": 42.4,
+      "Duration abs. diff (yrs)": 38.7,
+      "Issuer HHI": 37.8,
+      "Maturity L1 mismatch (pp)": 24.6
     },
     "pooled_mean_corr_with_liquidity": {
-      "Duration abs. diff (yrs)": 0.49,
-      "Issuer HHI": 0.74,
-      "Maturity L1 mismatch (pp)": 0.32,
-      "Rating L1 mismatch (pp)": 0.4,
-      "Sector L1 mismatch (pp)": 0.41,
-      "Top-10 issuer weight (%)": 0.97,
-      "YTM abs. diff (pp)": 0.52
+      "Duration abs. diff (yrs)": 0.21,
+      "Issuer HHI": 0.61,
+      "Maturity L1 mismatch (pp)": 0.08,
+      "Rating L1 mismatch (pp)": 0.24,
+      "Sector L1 mismatch (pp)": 0.31,
+      "Top-10 issuer weight (%)": 0.64,
+      "YTM abs. diff (pp)": 0.36
     },
     "low_confidence_dimensions": [
       "Duration abs. diff (yrs)",
       "Maturity L1 mismatch (pp)",
       "Rating L1 mismatch (pp)",
-      "Sector L1 mismatch (pp)"
+      "Sector L1 mismatch (pp)",
+      "YTM abs. diff (pp)"
     ],
-    "note": "Each dimension min-max scaled to 0-100 using its global range across the entire grid (all N x all lambda); degradation = normalized(worst in grid) - normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both ~0 at lambda=0, which broke a naive %-change ranking). low_confidence_dimensions have mean correlation with liquidity_score < 0.5: their ranking is driven more by a single noisy grid point (documented lambda-sweep noise) than a consistent trend, and should be read with that caveat -- e.g. Rating L1 ranks high mainly from one outlier at N=50/lambda=1.0, consistent with Step 4's finding that rating exposure barely moved. Sector L1 mismatch and issuer concentration (Top-10 weight, HHI) have the strongest, most consistent correlations (corr > 0.8 at N=100/200) and are the most reliably \"hardest to preserve.\""
+    "note": "Each dimension min-max scaled to 0-100 using its global range across the entire grid (all N x all lambda); degradation = normalized(worst on the Pareto frontier) - normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both ~0 at lambda=0, which broke a naive %-change ranking), and \"worst\" is taken from the Pareto-efficient subset (see step5_pareto_frontier.csv) rather than the raw grid max, so an off-frontier noise point (e.g. a spike at a tiny lambda that's dominated by better points elsewhere in the grid) can't set the ranking by itself. low_confidence_dimensions (mean correlation with liquidity_score < 0.5, see pooled_mean_corr_with_liquidity) still trend the right direction but noisily -- read their magnitude as directional, not precise. Dimensions with high pooled correlation are the most reliably \"hardest to preserve\": check pooled_mean_corr_with_liquidity against pooled_ranking_normalized_0_100 together, since a dimension can rank high on magnitude alone from a wide but inconsistent swing."
   },
   "q4_holdings_count_scaling": {
-    "50": {
-      "liquidity_range_in_grid": 0.0414,
-      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 31.03,
-      "n_grid_points": 8
+    "per_N": {
+      "50": {
+        "liquidity_range_in_grid": 0.0414,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 13.31,
+        "r_squared": 0.003,
+        "n_grid_points": 27
+      },
+      "100": {
+        "liquidity_range_in_grid": 0.0689,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 121.36,
+        "r_squared": 0.306,
+        "n_grid_points": 27
+      },
+      "200": {
+        "liquidity_range_in_grid": 0.0808,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 58.35,
+        "r_squared": 0.102,
+        "n_grid_points": 27
+      }
     },
-    "100": {
-      "liquidity_range_in_grid": 0.0532,
-      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 97.89,
-      "n_grid_points": 8
-    },
-    "200": {
-      "liquidity_range_in_grid": 0.0567,
-      "sector_mismatch_ols_slope_pp_per_liquidity_pt": 94.86,
-      "n_grid_points": 8
-    }
+    "weak_fit_Ns": [
+      50,
+      100,
+      200
+    ],
+    "note": "sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly noise, not a reliable linear trend -- the marginal-cost-vs-N comparison should be read as directional at best, not a confident finding."
   }
 }

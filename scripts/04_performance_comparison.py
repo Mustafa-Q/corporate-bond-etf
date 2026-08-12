@@ -36,7 +36,8 @@ os.makedirs(OUT, exist_ok=True)
 NOLIQ_LAMBDA = 0.0
 WITHLIQ_LAMBDA = 1.0
 SIZES = [50, 100, 200]          # N=25 excluded: liquidity optimizer was infeasible there
-ALL_LAMBDAS = [0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+ALL_LAMBDAS = [0.0, 0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06,
+               0.075, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 
 def load_weight_vector(bonds, n, lam):

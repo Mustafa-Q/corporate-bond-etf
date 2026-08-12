@@ -32,8 +32,13 @@ Methodology notes:
     subset of (liquidity_score, mismatch) points rather than assumed
     monotonic in lambda; this also visually documents the noise instead of
     hiding it (all raw grid points are plotted too).
-  - N=25 excluded throughout (liquidity optimizer infeasible at N=25, per
-    Step 3/4).
+  - N=25 excluded throughout (liquidity optimizer infeasible at N=25: the
+    per-position weight cap collapses to a flat 3% for N<133, and 25
+    positions x 3% = 75% can't sum to 1.0 -- see README "Known
+    limitations"). Fixing it would mean loosening the issuer/position
+    concentration constraints specifically for small N, which changes the
+    study's methodology rather than just its numerics; kept as a
+    documented limitation instead.
 
 Outputs (../output/step5/):
     step5_pareto_frontier.csv      Pareto-efficient (liquidity, mismatch) points, per N x dimension
@@ -144,13 +149,19 @@ def main():
         lo, hi = global_range[col]
         return (val - lo) / (hi - lo) * 100 if hi > lo else 0.0
 
+    # "worst" is taken from the PARETO-EFFICIENT subset (frontier, built above), not the raw
+    # grid max: a raw max lets a single off-frontier noise point set the ranking -- e.g. N=50's
+    # highest Rating L1 value in the raw grid occurs at lambda=0.0025 (barely any liquidity tilt
+    # at all), which isn't a real consequence of prioritizing liquidity, just sweep noise near
+    # the baseline. A point that's dominated (worse mismatch with no better liquidity to show for
+    # it) doesn't survive onto the frontier, so it can't set "worst" here.
     rank_rows = []
     for n in SIZES:
         sub = path[path.N == n]
         base = sub[sub['lambda'] == 0.0].iloc[0]
         for col, label in DIMS:
             baseline = base[col]
-            worst = sub[col].max()  # all DIMS are "lower is better"
+            worst = frontier[(frontier.N == n) & (frontier.dimension == label)]['mismatch_value'].max()
             baseline_norm = normalize(col, baseline)
             worst_norm = normalize(col, worst)
             corr = sub[['liquidity_score', col]].corr().iloc[0, 1]
@@ -186,16 +197,26 @@ def main():
     scaling_rows = []
     for n in SIZES:
         sub = path[path.N == n]
-        slope, _ = np.polyfit(sub['liquidity_score'], sub['sector_L1_pp'], 1)
+        slope, intercept = np.polyfit(sub['liquidity_score'], sub['sector_L1_pp'], 1)
+        pred = slope * sub['liquidity_score'] + intercept
+        ss_res = ((sub['sector_L1_pp'] - pred) ** 2).sum()
+        ss_tot = ((sub['sector_L1_pp'] - sub['sector_L1_pp'].mean()) ** 2).sum()
+        r2 = 1 - ss_res / ss_tot if ss_tot > 1e-9 else np.nan
         liq_range = sub['liquidity_score'].max() - sub['liquidity_score'].min()
         scaling_rows.append({
             'N': n,
             'liquidity_range_in_grid': round(liq_range, 4),
             'sector_mismatch_ols_slope_pp_per_liquidity_pt': round(slope, 2),
+            'r_squared': round(r2, 3) if pd.notna(r2) else None,
             'n_grid_points': len(sub),
         })
     scaling = pd.DataFrame(scaling_rows)
     scaling.to_csv(os.path.join(OUT, 'step5_N_scaling.csv'), index=False)
+    # R2 this low means the "slope" is mostly noise, not a reliable linear trend -- the sector-
+    # mismatch/liquidity relationship isn't well described by a single line at any N (consistent
+    # with the documented lambda-sweep noise; see chart1's raw-dot scatter). Don't read the
+    # N=50-vs-N=200 slope comparison as a confident "cost gets worse at smaller N" trend.
+    scaling_weak_fit = scaling[scaling['r_squared'] < 0.5]['N'].tolist()
 
     # ================================================================
     # Q2 - YIELD PATH (full grid, all N) + summary stats
@@ -228,19 +249,28 @@ def main():
             'pooled_mean_corr_with_liquidity': pooled_corr.to_dict(),
             'low_confidence_dimensions': low_confidence,
             'note': 'Each dimension min-max scaled to 0-100 using its global range across the entire '
-                    'grid (all N x all lambda); degradation = normalized(worst in grid) - '
-                    'normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids '
-                    'dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both '
-                    '~0 at lambda=0, which broke a naive %-change ranking). '
-                    'low_confidence_dimensions have mean correlation with liquidity_score < 0.5: their '
-                    'ranking is driven more by a single noisy grid point (documented lambda-sweep noise) '
-                    'than a consistent trend, and should be read with that caveat -- e.g. Rating L1 '
-                    'ranks high mainly from one outlier at N=50/lambda=1.0, consistent with Step 4\'s '
-                    'finding that rating exposure barely moved. Sector L1 mismatch and issuer '
-                    'concentration (Top-10 weight, HHI) have the strongest, most consistent correlations '
-                    '(corr > 0.8 at N=100/200) and are the most reliably "hardest to preserve."',
+                    'grid (all N x all lambda); degradation = normalized(worst on the Pareto frontier) '
+                    '- normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling '
+                    'avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are '
+                    'both ~0 at lambda=0, which broke a naive %-change ranking), and "worst" is taken '
+                    'from the Pareto-efficient subset (see step5_pareto_frontier.csv) rather than the '
+                    'raw grid max, so an off-frontier noise point (e.g. a spike at a tiny lambda that\'s '
+                    'dominated by better points elsewhere in the grid) can\'t set the ranking by itself. '
+                    'low_confidence_dimensions (mean correlation with liquidity_score < 0.5, see '
+                    'pooled_mean_corr_with_liquidity) still trend the right direction but noisily -- '
+                    'read their magnitude as directional, not precise. Dimensions with high pooled '
+                    'correlation are the most reliably "hardest to preserve": check '
+                    'pooled_mean_corr_with_liquidity against pooled_ranking_normalized_0_100 together, '
+                    'since a dimension can rank high on magnitude alone from a wide but inconsistent swing.',
         },
-        'q4_holdings_count_scaling': scaling.set_index('N').to_dict(orient='index'),
+        'q4_holdings_count_scaling': {
+            'per_N': scaling.set_index('N').to_dict(orient='index'),
+            'weak_fit_Ns': scaling_weak_fit,
+            'note': 'sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on '
+                    'liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly '
+                    'noise, not a reliable linear trend -- the marginal-cost-vs-N comparison '
+                    'should be read as directional at best, not a confident finding.',
+        },
     }
     with open(os.path.join(OUT, 'step5_summary.json'), 'w') as f:
         json.dump(summary, f, indent=2)
@@ -291,16 +321,18 @@ def main():
         plt.close(fig)
 
     def chart_N_scaling():
-        fig, ax = plt.subplots(figsize=(6.5, 5))
+        fig, ax = plt.subplots(figsize=(7, 5))
         col = 'sector_mismatch_ols_slope_pp_per_liquidity_pt'
         ax.plot(scaling['N'], scaling[col], '-o', color='#b9762f', markersize=7)
         for _, r in scaling.iterrows():
-            ax.annotate(f"{r[col]:.1f}", (r['N'], r[col]),
+            marker = ' (weak fit)' if r['N'] in scaling_weak_fit else ''
+            ax.annotate(f"{r[col]:.1f}{marker}", (r['N'], r[col]),
                        textcoords='offset points', xytext=(0, 8), ha='center', fontsize=9)
         ax.set_xticks(SIZES)
         ax.set_xlabel('N (holdings count)')
         ax.set_ylabel('Sector-mismatch pp per liquidity-score point (OLS slope)')
-        ax.set_title('Marginal cost of liquidity as N tightens', fontsize=12)
+        ax.set_title('Marginal cost of liquidity as N tightens\n'
+                     '("weak fit" = R²<0.5, slope is mostly sweep noise)', fontsize=12)
         ax.set_axisbelow(True)
         fig.tight_layout()
         fig.savefig(os.path.join(CH, 'chart3_N_scaling.png'), dpi=150, bbox_inches='tight')
@@ -335,6 +367,8 @@ def main():
         print(f'  low-confidence (corr<0.5, likely noise-driven not trend-driven): {low_confidence}')
     print('\nQ4 marginal cost of liquidity by N (OLS slope over full grid):')
     print(scaling.to_string(index=False))
+    if scaling_weak_fit:
+        print(f'  weak fit (R2<0.5, slope is mostly noise not a reliable trend): N={scaling_weak_fit}')
     return frontier, ranking, scaling, summary
 
 

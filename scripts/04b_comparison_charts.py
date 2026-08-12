@@ -124,8 +124,9 @@ def chart_rating_maturity():
 # CHART 4 - The trade-off: liquidity gained vs mismatch cost across lambda
 # ============================================================
 def chart_tradeoff():
+    Ns = [50, 100, 200]
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), sharex=True)
-    for ax, n in zip(axes, [50, 100, 200]):
+    for ax, n in zip(axes, Ns):
         sub = path[path.N == n].sort_values('lambda')
         ax2 = ax.twinx()
         l1 = ax.plot(sub['lambda'], sub['liquidity_score'], '-o', color=WITHLIQ,
@@ -133,7 +134,7 @@ def chart_tradeoff():
         l2 = ax2.plot(sub['lambda'], sub['sector_L1_pp'], '--s', color=NOLIQ,
                       markersize=4, label='Sector mismatch (R)')
         ax.set_title(f'N = {n}', fontsize=11)
-        ax.set_xscale('symlog', linthresh=0.01)
+        ax.set_xscale('symlog', linthresh=0.002)
         ax.set_xlabel('\u03bb (liquidity penalty)')
         ax.grid(True, color=GRID)
         ax2.grid(False)

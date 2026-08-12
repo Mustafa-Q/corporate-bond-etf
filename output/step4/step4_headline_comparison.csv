@@ -1,34 +1,34 @@
 N,dimension,without_liquidity (lambda=0.0),with_liquidity (lambda=1.0),change,objective,verdict
-50,Weighted-avg liquidity score,0.8771,0.9155,0.0384,higher,liquidity better
-50,Yield to maturity (%),5.5634,5.663,0.0996,match,reference level
-50,YTM abs. diff vs benchmark (pp),0.0421,0.0575,0.0154,lower,liquidity worse
-50,Effective duration (yrs),7.867,7.896,0.028,match,reference level
-50,Duration abs. diff vs benchmark (yrs),0.01,0.038,0.028,lower,liquidity worse
+50,Weighted-avg liquidity score,0.8771,0.9142,0.037,higher,liquidity better
+50,Yield to maturity (%),5.5634,5.6521,0.0888,match,reference level
+50,YTM abs. diff vs benchmark (pp),0.0421,0.0467,0.0046,lower,liquidity worse
+50,Effective duration (yrs),7.867,7.695,-0.172,match,reference level
+50,Duration abs. diff vs benchmark (yrs),0.01,0.162,0.152,lower,liquidity worse
 50,Sector L1 mismatch (pp),14.591,17.227,2.636,lower,liquidity worse
-50,Rating L1 mismatch (pp),0.186,4.056,3.871,lower,liquidity worse
-50,Maturity L1 mismatch (pp),5.54,6.83,1.29,lower,liquidity worse
+50,Rating L1 mismatch (pp),0.186,1.326,1.14,lower,liquidity worse
+50,Maturity L1 mismatch (pp),5.54,11.204,5.664,lower,liquidity worse
 50,Top-10 issuer weight (%),30.0,30.0,-0.0,lower,liquidity better
 50,Max single-issuer weight (%),3.0,3.0,-0.0,lower,liquidity better
-50,Issuer HHI,267.1,295.3,28.2,lower,liquidity worse
-100,Weighted-avg liquidity score,0.8608,0.9132,0.0523,higher,liquidity better
+50,Issuer HHI,267.1,293.6,26.4,lower,liquidity worse
+100,Weighted-avg liquidity score,0.8457,0.9132,0.0674,higher,liquidity better
 100,Yield to maturity (%),5.6054,5.6472,0.0418,match,reference level
 100,YTM abs. diff vs benchmark (pp),0.0,0.0418,0.0418,lower,liquidity worse
 100,Effective duration (yrs),7.857,7.81,-0.047,match,reference level
 100,Duration abs. diff vs benchmark (yrs),0.0,0.047,0.047,lower,liquidity worse
-100,Sector L1 mismatch (pp),2.631,8.418,5.786,lower,liquidity worse
+100,Sector L1 mismatch (pp),1.226,8.418,7.191,lower,liquidity worse
 100,Rating L1 mismatch (pp),0.0,1.072,1.072,lower,liquidity worse
 100,Maturity L1 mismatch (pp),0.1,2.073,1.973,lower,liquidity worse
-100,Top-10 issuer weight (%),25.34,30.0,4.66,lower,liquidity worse
-100,Max single-issuer weight (%),2.93,3.0,0.07,lower,liquidity worse
-100,Issuer HHI,180.4,240.4,60.0,lower,liquidity worse
-200,Weighted-avg liquidity score,0.8534,0.909,0.0556,higher,liquidity better
-200,Yield to maturity (%),5.6054,5.6567,0.0513,match,reference level
-200,YTM abs. diff vs benchmark (pp),0.0,0.0513,0.0513,lower,liquidity worse
-200,Effective duration (yrs),7.857,7.908,0.05,match,reference level
-200,Duration abs. diff vs benchmark (yrs),0.0,0.05,0.05,lower,liquidity worse
-200,Sector L1 mismatch (pp),0.669,6.825,6.155,lower,liquidity worse
-200,Rating L1 mismatch (pp),0.0,1.224,1.224,lower,liquidity worse
-200,Maturity L1 mismatch (pp),0.1,0.691,0.591,lower,liquidity worse
-200,Top-10 issuer weight (%),21.74,30.0,8.26,lower,liquidity worse
-200,Max single-issuer weight (%),2.63,3.0,0.37,lower,liquidity worse
-200,Issuer HHI,128.6,245.5,116.9,lower,liquidity worse
+100,Top-10 issuer weight (%),26.36,30.0,3.64,lower,liquidity worse
+100,Max single-issuer weight (%),2.92,3.0,0.08,lower,liquidity worse
+100,Issuer HHI,180.2,240.4,60.2,lower,liquidity worse
+200,Weighted-avg liquidity score,0.8293,0.9072,0.0779,higher,liquidity better
+200,Yield to maturity (%),5.6054,5.6595,0.0541,match,reference level
+200,YTM abs. diff vs benchmark (pp),0.0,0.0541,0.0541,lower,liquidity worse
+200,Effective duration (yrs),7.857,7.896,0.038,match,reference level
+200,Duration abs. diff vs benchmark (yrs),0.0,0.038,0.038,lower,liquidity worse
+200,Sector L1 mismatch (pp),0.669,6.231,5.562,lower,liquidity worse
+200,Rating L1 mismatch (pp),0.0,0.74,0.74,lower,liquidity worse
+200,Maturity L1 mismatch (pp),0.1,0.517,0.416,lower,liquidity worse
+200,Top-10 issuer weight (%),16.78,30.01,13.23,lower,liquidity worse
+200,Max single-issuer weight (%),2.02,3.0,0.98,lower,liquidity worse
+200,Issuer HHI,102.4,235.1,132.6,lower,liquidity worse

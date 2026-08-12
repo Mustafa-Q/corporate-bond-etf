@@ -19,8 +19,18 @@ import os
 from portfolio_utils import load_bonds, compute_benchmark_targets, evaluate_portfolio, sector_dummies, maturity_dummies, rating_dummies
 
 MAX_ISSUER_WEIGHT = 0.03
-LAMBDA_GRID = [0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
-SIZES_FOR_SWEEP = [50, 100, 200]
+# Densified vs. the original 8-point grid (documented "noisy sweep" limitation). The "noise" is
+# largely the relax-and-round heuristic's top_n_local = argsort(w_prior)[:n] step switching
+# between DISCRETE candidate bond sets as lambda crosses certain thresholds -- not sampling
+# noise around a smooth curve, so no grid density makes it perfectly continuous. What density
+# does do: reveal the plateau/threshold structure (many nearby lambdas sharing one discrete
+# selection) instead of a coarse grid landing on an unlucky single point that reads as an
+# extreme outlier -- e.g. the original 8-point grid's N=50 Rating L1 spike to 4.06pp at
+# lambda=1.0 is gone once 0.75/1.5 are added around it. Extra points concentrated at low
+# lambda, where the trade-off moves fastest.
+LAMBDA_GRID = [0.0, 0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06,
+               0.075, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0]
+SIZES_FOR_SWEEP = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (see README)
 
 os.makedirs('output/liquidity', exist_ok=True)
 

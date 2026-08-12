@@ -1,4 +1,4 @@
-N,liquidity_range_in_grid,sector_mismatch_ols_slope_pp_per_liquidity_pt,n_grid_points
-50,0.0414,31.03,8
-100,0.0532,97.89,8
-200,0.0567,94.86,8
+N,liquidity_range_in_grid,sector_mismatch_ols_slope_pp_per_liquidity_pt,r_squared,n_grid_points
+50,0.0414,13.31,0.003,27
+100,0.0689,121.36,0.306,27
+200,0.0808,58.35,0.102,27

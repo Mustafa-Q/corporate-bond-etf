@@ -14,28 +14,28 @@
   },
   "per_N": {
     "50": {
-      "liquidity_gain": 0.0384,
-      "yield_change_pp": 0.0996,
+      "liquidity_gain": 0.037,
+      "yield_change_pp": 0.0888,
       "sector_mismatch_change_pp": 2.636,
-      "rating_mismatch_change_pp": 3.871,
-      "duration_diff_change": 0.028,
+      "rating_mismatch_change_pp": 1.14,
+      "duration_diff_change": 0.152,
       "top10_issuer_change_pp": -0.0
     },
     "100": {
-      "liquidity_gain": 0.0523,
+      "liquidity_gain": 0.0674,
       "yield_change_pp": 0.0418,
-      "sector_mismatch_change_pp": 5.786,
+      "sector_mismatch_change_pp": 7.191,
       "rating_mismatch_change_pp": 1.072,
       "duration_diff_change": 0.047,
-      "top10_issuer_change_pp": 4.66
+      "top10_issuer_change_pp": 3.64
     },
     "200": {
-      "liquidity_gain": 0.0556,
-      "yield_change_pp": 0.0513,
-      "sector_mismatch_change_pp": 6.155,
-      "rating_mismatch_change_pp": 1.224,
-      "duration_diff_change": 0.05,
-      "top10_issuer_change_pp": 8.26
+      "liquidity_gain": 0.0779,
+      "yield_change_pp": 0.0541,
+      "sector_mismatch_change_pp": 5.562,
+      "rating_mismatch_change_pp": 0.74,
+      "duration_diff_change": 0.038,
+      "top10_issuer_change_pp": 13.23
     }
   }
 }
