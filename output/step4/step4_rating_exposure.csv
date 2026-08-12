@@ -1,4 +1,4 @@
-category,benchmark_%,no_liq_N25_%,with_liq_N25_%,no_liq_N50_%,with_liq_N50_%,no_liq_N100_%,with_liq_N100_%,no_liq_N200_%,with_liq_N200_%
-A-or-better,59.56,52.0,76.0,59.519,60.035,59.56,59.963,59.56,59.89
-BBB,37.628,48.0,24.0,37.721,36.965,37.628,37.761,37.628,37.668
-Unknown/Ambiguous,2.812,0.0,0.0,2.76,3.0,2.812,2.276,2.812,2.442
+category,benchmark_%,no_liq_N50_%,with_liq_N50_%,no_liq_N100_%,with_liq_N100_%,no_liq_N200_%,with_liq_N200_%
+A-or-better,59.56,59.519,60.035,59.56,59.963,59.56,59.89
+BBB,37.628,37.721,36.965,37.628,37.761,37.628,37.668
+Unknown/Ambiguous,2.812,2.76,3.0,2.812,2.276,2.812,2.442

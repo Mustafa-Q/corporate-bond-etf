@@ -1,15 +1,4 @@
 N,dimension,without_liquidity (lambda=0.0),with_liquidity (lambda=1.0),change,objective,verdict
-25,Weighted-avg liquidity score,0.8892,0.9124,0.0232,higher,liquidity better
-25,Yield to maturity (%),5.5832,5.5568,-0.0264,match,reference level
-25,YTM abs. diff vs benchmark (pp),0.0222,0.0486,0.0264,lower,liquidity worse
-25,Effective duration (yrs),7.54,7.591,0.051,match,reference level
-25,Duration abs. diff vs benchmark (yrs),0.317,0.266,-0.051,lower,liquidity better
-25,Sector L1 mismatch (pp),25.338,38.428,13.09,lower,liquidity worse
-25,Rating L1 mismatch (pp),20.744,32.88,12.136,lower,liquidity worse
-25,Maturity L1 mismatch (pp),21.711,21.604,-0.107,lower,liquidity better
-25,Top-10 issuer weight (%),40.0,40.0,0.0,lower,tie
-25,Max single-issuer weight (%),4.0,4.0,0.0,lower,tie
-25,Issuer HHI,400.0,400.0,0.0,lower,tie
 50,Weighted-avg liquidity score,0.8771,0.9142,0.037,higher,liquidity better
 50,Yield to maturity (%),5.5634,5.6521,0.0888,match,reference level
 50,YTM abs. diff vs benchmark (pp),0.0421,0.0467,0.0046,lower,liquidity worse

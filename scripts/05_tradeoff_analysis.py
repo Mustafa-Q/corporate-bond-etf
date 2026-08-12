@@ -32,15 +32,13 @@ Methodology notes:
     subset of (liquidity_score, mismatch) points rather than assumed
     monotonic in lambda; this also visually documents the noise instead of
     hiding it (all raw grid points are plotted too).
-  - N=25 is now included: Step 3's per-position weight cap was fixed (it
-    previously collapsed to a flat 3% for N<133, which made the QP
-    infeasible at N=25 since 25 x 3% = 75% < 100%; the cap now scales with
-    N, see 03_liquidity_optimization.py). N=25's issuer-level cap still
-    self-adjusts to ~1/n_unique_issuers, which leaves little slack for
-    uneven weighting within the chosen bonds -- liquidity tilt at N=25
-    operates mostly through WHICH bonds are selected, not how they're
-    weighted. This is a structural consequence of the 3%-issuer-cap design
-    at small N, not an optimizer bug.
+  - N=25 excluded throughout (liquidity optimizer infeasible at N=25: the
+    per-position weight cap collapses to a flat 3% for N<133, and 25
+    positions x 3% = 75% can't sum to 1.0 -- see README "Known
+    limitations"). Fixing it would mean loosening the issuer/position
+    concentration constraints specifically for small N, which changes the
+    study's methodology rather than just its numerics; kept as a
+    documented limitation instead.
 
 Outputs (../output/step5/):
     step5_pareto_frontier.csv      Pareto-efficient (liquidity, mismatch) points, per N x dimension
@@ -66,7 +64,7 @@ OUT = os.path.join(os.path.dirname(__file__), '..', 'output', 'step5')
 CH = os.path.join(OUT, 'charts')
 os.makedirs(CH, exist_ok=True)
 
-SIZES = [25, 50, 100, 200]  # N=25 now feasible -- Step 3's per-position cap was fixed
+SIZES = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (Step 3/4)
 
 # mismatch/degradation dimensions used for Q1 and Q3: (column, label, "lower is better"=True for all)
 DIMS = [
@@ -81,7 +79,7 @@ DIMS = [
 
 # --- palette, consistent with Step 4 charts ---
 INK, MUTED, GRID = '#2b2a26', '#898781', '#e1e0d9'
-N_COLORS = {25: '#a8493a', 50: '#b9762f', 100: '#6b7a8f', 200: '#5a8a6b'}
+N_COLORS = {50: '#b9762f', 100: '#6b7a8f', 200: '#5a8a6b'}
 RAW_ALPHA = 0.35
 plt.rcParams.update({
     'font.family': 'DejaVu Sans', 'font.size': 10, 'text.color': INK,
@@ -151,13 +149,19 @@ def main():
         lo, hi = global_range[col]
         return (val - lo) / (hi - lo) * 100 if hi > lo else 0.0
 
+    # "worst" is taken from the PARETO-EFFICIENT subset (frontier, built above), not the raw
+    # grid max: a raw max lets a single off-frontier noise point set the ranking -- e.g. N=50's
+    # highest Rating L1 value in the raw grid occurs at lambda=0.0025 (barely any liquidity tilt
+    # at all), which isn't a real consequence of prioritizing liquidity, just sweep noise near
+    # the baseline. A point that's dominated (worse mismatch with no better liquidity to show for
+    # it) doesn't survive onto the frontier, so it can't set "worst" here.
     rank_rows = []
     for n in SIZES:
         sub = path[path.N == n]
         base = sub[sub['lambda'] == 0.0].iloc[0]
         for col, label in DIMS:
             baseline = base[col]
-            worst = sub[col].max()  # all DIMS are "lower is better"
+            worst = frontier[(frontier.N == n) & (frontier.dimension == label)]['mismatch_value'].max()
             baseline_norm = normalize(col, baseline)
             worst_norm = normalize(col, worst)
             corr = sub[['liquidity_score', col]].corr().iloc[0, 1]
@@ -210,8 +214,8 @@ def main():
     scaling.to_csv(os.path.join(OUT, 'step5_N_scaling.csv'), index=False)
     # R2 this low means the "slope" is mostly noise, not a reliable linear trend -- the sector-
     # mismatch/liquidity relationship isn't well described by a single line at any N (consistent
-    # with the documented lambda-sweep noise; see chart1's raw-dot scatter). Don't read the N=25
-    # vs N=200 slope comparison as a confident "cost gets worse at smaller N" trend.
+    # with the documented lambda-sweep noise; see chart1's raw-dot scatter). Don't read the
+    # N=50-vs-N=200 slope comparison as a confident "cost gets worse at smaller N" trend.
     scaling_weak_fit = scaling[scaling['r_squared'] < 0.5]['N'].tolist()
 
     # ================================================================
@@ -245,17 +249,19 @@ def main():
             'pooled_mean_corr_with_liquidity': pooled_corr.to_dict(),
             'low_confidence_dimensions': low_confidence,
             'note': 'Each dimension min-max scaled to 0-100 using its global range across the entire '
-                    'grid (all N x all lambda); degradation = normalized(worst in grid) - '
-                    'normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids '
-                    'dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both '
-                    '~0 at lambda=0, which broke a naive %-change ranking). '
-                    'low_confidence_dimensions have mean correlation with liquidity_score < 0.5: their '
-                    'ranking is driven more by a single noisy grid point (documented lambda-sweep noise) '
-                    'than a consistent trend, and should be read with that caveat -- e.g. Rating L1 '
-                    'ranks high mainly from one outlier at N=50/lambda=1.0, consistent with Step 4\'s '
-                    'finding that rating exposure barely moved. Sector L1 mismatch and issuer '
-                    'concentration (Top-10 weight, HHI) have the strongest, most consistent correlations '
-                    '(corr > 0.8 at N=100/200) and are the most reliably "hardest to preserve."',
+                    'grid (all N x all lambda); degradation = normalized(worst on the Pareto frontier) '
+                    '- normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling '
+                    'avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are '
+                    'both ~0 at lambda=0, which broke a naive %-change ranking), and "worst" is taken '
+                    'from the Pareto-efficient subset (see step5_pareto_frontier.csv) rather than the '
+                    'raw grid max, so an off-frontier noise point (e.g. a spike at a tiny lambda that\'s '
+                    'dominated by better points elsewhere in the grid) can\'t set the ranking by itself. '
+                    'low_confidence_dimensions (mean correlation with liquidity_score < 0.5, see '
+                    'pooled_mean_corr_with_liquidity) still trend the right direction but noisily -- '
+                    'read their magnitude as directional, not precise. Dimensions with high pooled '
+                    'correlation are the most reliably "hardest to preserve": check '
+                    'pooled_mean_corr_with_liquidity against pooled_ranking_normalized_0_100 together, '
+                    'since a dimension can rank high on magnitude alone from a wide but inconsistent swing.',
         },
         'q4_holdings_count_scaling': {
             'per_N': scaling.set_index('N').to_dict(orient='index'),

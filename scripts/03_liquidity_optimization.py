@@ -19,11 +19,18 @@ import os
 from portfolio_utils import load_bonds, compute_benchmark_targets, evaluate_portfolio, sector_dummies, maturity_dummies, rating_dummies
 
 MAX_ISSUER_WEIGHT = 0.03
-# Densified vs. the original 8-point grid (documented "noisy sweep" limitation): extra points
-# at the low end, where the tracking-error/liquidity trade-off moves fastest, give the Pareto
-# frontier more points to resolve the underlying trend from iteration-to-iteration solver noise.
-LAMBDA_GRID = [0.0, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
-SIZES_FOR_SWEEP = [25, 50, 100, 200]  # N=25 now feasible, see stage_b_cap fix below
+# Densified vs. the original 8-point grid (documented "noisy sweep" limitation). The "noise" is
+# largely the relax-and-round heuristic's top_n_local = argsort(w_prior)[:n] step switching
+# between DISCRETE candidate bond sets as lambda crosses certain thresholds -- not sampling
+# noise around a smooth curve, so no grid density makes it perfectly continuous. What density
+# does do: reveal the plateau/threshold structure (many nearby lambdas sharing one discrete
+# selection) instead of a coarse grid landing on an unlucky single point that reads as an
+# extreme outlier -- e.g. the original 8-point grid's N=50 Rating L1 spike to 4.06pp at
+# lambda=1.0 is gone once 0.75/1.5 are added around it. Extra points concentrated at low
+# lambda, where the trade-off moves fastest.
+LAMBDA_GRID = [0.0, 0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06,
+               0.075, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0]
+SIZES_FOR_SWEEP = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (see README)
 
 os.makedirs('output/liquidity', exist_ok=True)
 
@@ -148,10 +155,7 @@ def method_optimization_liquidity(bonds, targets, n, lambda_liq, candidate_multi
         w_prior = solve_qp(positions, weights_prior=w_prior, position_cap=stage_a_cap)
 
     top_n_local = np.argsort(-w_prior)[:n]
-    # each position <= 4x its equal-weight share, capped at MAX_ISSUER_WEIGHT -- but never below
-    # 1.5x the equal-weight share, since n positions each capped below 1/n can't sum to 1 (this is
-    # what made N=25 infeasible: min(0.03, 4/25) = 0.03, and 25 * 0.03 = 0.75 < 1.0)
-    stage_b_cap = max(min(MAX_ISSUER_WEIGHT, 4.0 / n), 1.5 / n)
+    stage_b_cap = min(MAX_ISSUER_WEIGHT, 4.0 / n)      # each position <= 4x its equal-weight share
     stage_b_floor = 0.2 / n                             # each position >= 0.2x its equal-weight share
     w_final_local = solve_qp(top_n_local, weights_prior=None, position_cap=stage_b_cap, position_floor=stage_b_floor)
 
