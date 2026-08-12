@@ -35,8 +35,8 @@ os.makedirs(OUT, exist_ok=True)
 # lambda=0.0 is the "without liquidity" baseline; 1.0 the primary "with liquidity" book
 NOLIQ_LAMBDA = 0.0
 WITHLIQ_LAMBDA = 1.0
-SIZES = [50, 100, 200]          # N=25 excluded: liquidity optimizer was infeasible there
-ALL_LAMBDAS = [0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+SIZES = [25, 50, 100, 200]      # N=25 now feasible -- Step 3's per-position cap was fixed
+ALL_LAMBDAS = [0.0, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 
 def load_weight_vector(bonds, n, lam):

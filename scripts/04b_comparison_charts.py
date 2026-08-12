@@ -45,8 +45,8 @@ def chart_mismatch():
             'Maturity L1 mismatch (pp)', 'Duration abs. diff vs benchmark (yrs)',
             'YTM abs. diff vs benchmark (pp)']
     short = ['Sector', 'Rating', 'Maturity', 'Duration', 'Yield']
-    Ns = [50, 100, 200]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), sharey=False)
+    Ns = [25, 50, 100, 200]
+    fig, axes = plt.subplots(1, 4, figsize=(16.5, 4.2), sharey=False)
     for ax, n in zip(axes, Ns):
         sub = head[head.N == n].set_index('dimension')
         no = [sub.loc[d, 'without_liquidity (lambda=0.0)'] for d in dims]
@@ -57,7 +57,7 @@ def chart_mismatch():
         ax.set_title(f'N = {n} holdings', fontsize=11, pad=8)
         ax.set_xticks(x); ax.set_xticklabels(short, rotation=30, ha='right')
         ax.set_axisbelow(True)
-        if n == 50:
+        if n == 25:
             ax.set_ylabel('Deviation from benchmark\n(pp, or yrs for duration)')
     axes[0].legend(loc='upper left', frameon=False, fontsize=9)
     fig.suptitle('Characteristic mismatch rises when liquidity is prioritized',
@@ -124,8 +124,9 @@ def chart_rating_maturity():
 # CHART 4 - The trade-off: liquidity gained vs mismatch cost across lambda
 # ============================================================
 def chart_tradeoff():
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), sharex=True)
-    for ax, n in zip(axes, [50, 100, 200]):
+    Ns = [25, 50, 100, 200]
+    fig, axes = plt.subplots(1, 4, figsize=(16.5, 4.2), sharex=True)
+    for ax, n in zip(axes, Ns):
         sub = path[path.N == n].sort_values('lambda')
         ax2 = ax.twinx()
         l1 = ax.plot(sub['lambda'], sub['liquidity_score'], '-o', color=WITHLIQ,
@@ -133,11 +134,11 @@ def chart_tradeoff():
         l2 = ax2.plot(sub['lambda'], sub['sector_L1_pp'], '--s', color=NOLIQ,
                       markersize=4, label='Sector mismatch (R)')
         ax.set_title(f'N = {n}', fontsize=11)
-        ax.set_xscale('symlog', linthresh=0.01)
+        ax.set_xscale('symlog', linthresh=0.005)
         ax.set_xlabel('\u03bb (liquidity penalty)')
         ax.grid(True, color=GRID)
         ax2.grid(False)
-        if n == 50:
+        if n == 25:
             ax.set_ylabel('Weighted-avg liquidity score', color=WITHLIQ)
         if n == 200:
             ax2.set_ylabel('Sector L1 mismatch (pp)', color=NOLIQ)
@@ -155,7 +156,7 @@ def chart_tradeoff():
 # ============================================================
 def chart_concentration_yield():
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
-    Ns = [50, 100, 200]
+    Ns = [25, 50, 100, 200]
 
     # HHI
     no_hhi = [head[(head.N == n) & (head.dimension == 'Issuer HHI')]['without_liquidity (lambda=0.0)'].iloc[0] for n in Ns]

@@ -32,8 +32,15 @@ Methodology notes:
     subset of (liquidity_score, mismatch) points rather than assumed
     monotonic in lambda; this also visually documents the noise instead of
     hiding it (all raw grid points are plotted too).
-  - N=25 excluded throughout (liquidity optimizer infeasible at N=25, per
-    Step 3/4).
+  - N=25 is now included: Step 3's per-position weight cap was fixed (it
+    previously collapsed to a flat 3% for N<133, which made the QP
+    infeasible at N=25 since 25 x 3% = 75% < 100%; the cap now scales with
+    N, see 03_liquidity_optimization.py). N=25's issuer-level cap still
+    self-adjusts to ~1/n_unique_issuers, which leaves little slack for
+    uneven weighting within the chosen bonds -- liquidity tilt at N=25
+    operates mostly through WHICH bonds are selected, not how they're
+    weighted. This is a structural consequence of the 3%-issuer-cap design
+    at small N, not an optimizer bug.
 
 Outputs (../output/step5/):
     step5_pareto_frontier.csv      Pareto-efficient (liquidity, mismatch) points, per N x dimension
@@ -59,7 +66,7 @@ OUT = os.path.join(os.path.dirname(__file__), '..', 'output', 'step5')
 CH = os.path.join(OUT, 'charts')
 os.makedirs(CH, exist_ok=True)
 
-SIZES = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (Step 3/4)
+SIZES = [25, 50, 100, 200]  # N=25 now feasible -- Step 3's per-position cap was fixed
 
 # mismatch/degradation dimensions used for Q1 and Q3: (column, label, "lower is better"=True for all)
 DIMS = [
@@ -74,7 +81,7 @@ DIMS = [
 
 # --- palette, consistent with Step 4 charts ---
 INK, MUTED, GRID = '#2b2a26', '#898781', '#e1e0d9'
-N_COLORS = {50: '#b9762f', 100: '#6b7a8f', 200: '#5a8a6b'}
+N_COLORS = {25: '#a8493a', 50: '#b9762f', 100: '#6b7a8f', 200: '#5a8a6b'}
 RAW_ALPHA = 0.35
 plt.rcParams.update({
     'font.family': 'DejaVu Sans', 'font.size': 10, 'text.color': INK,
@@ -186,16 +193,26 @@ def main():
     scaling_rows = []
     for n in SIZES:
         sub = path[path.N == n]
-        slope, _ = np.polyfit(sub['liquidity_score'], sub['sector_L1_pp'], 1)
+        slope, intercept = np.polyfit(sub['liquidity_score'], sub['sector_L1_pp'], 1)
+        pred = slope * sub['liquidity_score'] + intercept
+        ss_res = ((sub['sector_L1_pp'] - pred) ** 2).sum()
+        ss_tot = ((sub['sector_L1_pp'] - sub['sector_L1_pp'].mean()) ** 2).sum()
+        r2 = 1 - ss_res / ss_tot if ss_tot > 1e-9 else np.nan
         liq_range = sub['liquidity_score'].max() - sub['liquidity_score'].min()
         scaling_rows.append({
             'N': n,
             'liquidity_range_in_grid': round(liq_range, 4),
             'sector_mismatch_ols_slope_pp_per_liquidity_pt': round(slope, 2),
+            'r_squared': round(r2, 3) if pd.notna(r2) else None,
             'n_grid_points': len(sub),
         })
     scaling = pd.DataFrame(scaling_rows)
     scaling.to_csv(os.path.join(OUT, 'step5_N_scaling.csv'), index=False)
+    # R2 this low means the "slope" is mostly noise, not a reliable linear trend -- the sector-
+    # mismatch/liquidity relationship isn't well described by a single line at any N (consistent
+    # with the documented lambda-sweep noise; see chart1's raw-dot scatter). Don't read the N=25
+    # vs N=200 slope comparison as a confident "cost gets worse at smaller N" trend.
+    scaling_weak_fit = scaling[scaling['r_squared'] < 0.5]['N'].tolist()
 
     # ================================================================
     # Q2 - YIELD PATH (full grid, all N) + summary stats
@@ -240,7 +257,14 @@ def main():
                     'concentration (Top-10 weight, HHI) have the strongest, most consistent correlations '
                     '(corr > 0.8 at N=100/200) and are the most reliably "hardest to preserve."',
         },
-        'q4_holdings_count_scaling': scaling.set_index('N').to_dict(orient='index'),
+        'q4_holdings_count_scaling': {
+            'per_N': scaling.set_index('N').to_dict(orient='index'),
+            'weak_fit_Ns': scaling_weak_fit,
+            'note': 'sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on '
+                    'liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly '
+                    'noise, not a reliable linear trend -- the marginal-cost-vs-N comparison '
+                    'should be read as directional at best, not a confident finding.',
+        },
     }
     with open(os.path.join(OUT, 'step5_summary.json'), 'w') as f:
         json.dump(summary, f, indent=2)
@@ -291,16 +315,18 @@ def main():
         plt.close(fig)
 
     def chart_N_scaling():
-        fig, ax = plt.subplots(figsize=(6.5, 5))
+        fig, ax = plt.subplots(figsize=(7, 5))
         col = 'sector_mismatch_ols_slope_pp_per_liquidity_pt'
         ax.plot(scaling['N'], scaling[col], '-o', color='#b9762f', markersize=7)
         for _, r in scaling.iterrows():
-            ax.annotate(f"{r[col]:.1f}", (r['N'], r[col]),
+            marker = ' (weak fit)' if r['N'] in scaling_weak_fit else ''
+            ax.annotate(f"{r[col]:.1f}{marker}", (r['N'], r[col]),
                        textcoords='offset points', xytext=(0, 8), ha='center', fontsize=9)
         ax.set_xticks(SIZES)
         ax.set_xlabel('N (holdings count)')
         ax.set_ylabel('Sector-mismatch pp per liquidity-score point (OLS slope)')
-        ax.set_title('Marginal cost of liquidity as N tightens', fontsize=12)
+        ax.set_title('Marginal cost of liquidity as N tightens\n'
+                     '("weak fit" = R²<0.5, slope is mostly sweep noise)', fontsize=12)
         ax.set_axisbelow(True)
         fig.tight_layout()
         fig.savefig(os.path.join(CH, 'chart3_N_scaling.png'), dpi=150, bbox_inches='tight')
@@ -335,6 +361,8 @@ def main():
         print(f'  low-confidence (corr<0.5, likely noise-driven not trend-driven): {low_confidence}')
     print('\nQ4 marginal cost of liquidity by N (OLS slope over full grid):')
     print(scaling.to_string(index=False))
+    if scaling_weak_fit:
+        print(f'  weak fit (R2<0.5, slope is mostly noise not a reliable trend): N={scaling_weak_fit}')
     return frontier, ranking, scaling, summary
 
 

@@ -19,8 +19,11 @@ import os
 from portfolio_utils import load_bonds, compute_benchmark_targets, evaluate_portfolio, sector_dummies, maturity_dummies, rating_dummies
 
 MAX_ISSUER_WEIGHT = 0.03
-LAMBDA_GRID = [0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
-SIZES_FOR_SWEEP = [50, 100, 200]
+# Densified vs. the original 8-point grid (documented "noisy sweep" limitation): extra points
+# at the low end, where the tracking-error/liquidity trade-off moves fastest, give the Pareto
+# frontier more points to resolve the underlying trend from iteration-to-iteration solver noise.
+LAMBDA_GRID = [0.0, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
+SIZES_FOR_SWEEP = [25, 50, 100, 200]  # N=25 now feasible, see stage_b_cap fix below
 
 os.makedirs('output/liquidity', exist_ok=True)
 
@@ -145,7 +148,10 @@ def method_optimization_liquidity(bonds, targets, n, lambda_liq, candidate_multi
         w_prior = solve_qp(positions, weights_prior=w_prior, position_cap=stage_a_cap)
 
     top_n_local = np.argsort(-w_prior)[:n]
-    stage_b_cap = min(MAX_ISSUER_WEIGHT, 4.0 / n)      # each position <= 4x its equal-weight share
+    # each position <= 4x its equal-weight share, capped at MAX_ISSUER_WEIGHT -- but never below
+    # 1.5x the equal-weight share, since n positions each capped below 1/n can't sum to 1 (this is
+    # what made N=25 infeasible: min(0.03, 4/25) = 0.03, and 25 * 0.03 = 0.75 < 1.0)
+    stage_b_cap = max(min(MAX_ISSUER_WEIGHT, 4.0 / n), 1.5 / n)
     stage_b_floor = 0.2 / n                             # each position >= 0.2x its equal-weight share
     w_final_local = solve_qp(top_n_local, weights_prior=None, position_cap=stage_b_cap, position_floor=stage_b_floor)
 
