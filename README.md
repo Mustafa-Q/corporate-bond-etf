@@ -48,6 +48,8 @@ These download as `.xls` but are actually SpreadsheetML XML, not binary Excel �
 4. **Performance comparison** *(done)* — head-to-head comparison of the pure-tracking portfolio (λ=0) against a liquidity-tilted portfolio (λ=1) at N = 50, 100, 200, across every dimension in the proposal: rating exposure, sector exposure, duration, yield, issuer concentration, liquidity profile, and characteristic mismatch. Both books come from the same optimizer, so the contrast isolates the effect of adding liquidity considerations. Tables and charts are in `output/step4/`. N=25 is excluded (see limitations). Headline finding (N=100, λ=0 → λ=1): the weighted-average liquidity score rises from 0.85 to 0.91 and yield holds up (5.61% → 5.65%), but sector fidelity and issuer concentration pay for it — sector L1 mismatch widens from 1.2 to 8.4 pp, top-10 issuer weight from 26.4% to 30.0%. Rating exposure barely moves.
 5. **Trade-off analysis** *(done)* — directly answers the four questions in the original proposal using the full λ grid: (1) accuracy lost to liquidity, via a Pareto-efficient frontier per dimension — now smooth for the liquidity-score axis at every N, since the densified grid gave the underlying trend enough points to separate from sweep noise; (2) yield impact — stays within 16bp (N=50) to 8bp (N=100/200) of benchmark YTM across the entire grid; (3) hardest characteristics to preserve, ranked with a correlation-based confidence check (so an off-frontier noise point can't set the ranking) — issuer concentration and sector fidelity are the most *reliably* the biggest casualties, rating/maturity/duration trend the same direction but noisily; (4) how the trade-off scales with N — inconclusive even after densifying the grid: an OLS slope of sector mismatch vs. liquidity score has R²<0.5 at every N, so no confident claim about smaller N being a "worse" trade-off is supported by this data. Tables and charts are in `output/step5/`.
 
+6. **Liquidity-proxy validation** *(in progress — data-access decision pending)* — tests the reviewer's critique that par holding size measures **issue size**, not **tradability**. Two reads: (A) a *size* read that is always computable from the data already in the repo — the same bond's position in QLTA or LQDB, a different fund sizing the same issue; (B) an *activity* read from FINRA TRACE — trade count, distinct days traded and (capped) volume per CUSIP over 2026-04-22 → 2026-07-22. `scripts/06_liquidity_proxy_validation.py` runs read A today and read B as soon as `data/lqd_cusip_crosswalk.csv` and `data/trace_activity_raw.csv` exist (schema in `scripts/trace_utils.py`). **Why B is not done yet:** the only free, programmatic per-bond TRACE source found is the JSON API behind FINRA's public Fixed Income Data site, and FINRA's user agreement for that site forbids automated copying and any redistribution — so a 3,143-bond pull committed to a public repo is not permissible without a licensed source or a manual-export path. The investigation, the options and the input contract are written up in [`docs/superpowers/specs/2026-09-15-trace-liquidity-measure-design.md`](docs/superpowers/specs/2026-09-15-trace-liquidity-measure-design.md). Current read-A result (`output/step6/step6_summary.json`): LQD par holding vs the same bond's par share in QLTA/LQDB has Spearman ρ = 0.53 over 2,566 bonds, and it splits by fund — 0.74 within the 1,714 QLTA (A-or-better) bonds but only 0.33 within the 852 LQDB (BBB) bonds. Even two BlackRock funds' positions in the *same* bond agree only moderately, so par holding size is a noisy read of issue size itself, before tradability even enters.
+
 Full narrative write-up of Steps 1–3, including known limitations and edge cases, is in [`methodology_notes.docx`](methodology_notes.docx) (or see `docs/` if converted to Markdown).
 
 ## Repository structure
@@ -65,6 +67,17 @@ scripts/
   04_performance_comparison.py # Step 4: with vs. without liquidity comparison tables
   04b_comparison_charts.py     # Step 4: renders the comparison charts
   05_tradeoff_analysis.py      # Step 5: trade-off frontier analysis, answers the four proposal questions
+  06_liquidity_proxy_validation.py # Step 6: does par size track issue size or trading activity? (see above)
+  00b_build_cusip_crosswalk.py # Step 6 input: LQD -> CUSIP crosswalk from the fund's own SEC Form N-PORT (public domain)
+  00c_parse_finra_trade_export.py # Step 6 input: manual FINRA trade-activity export -> data/trace_activity_raw.csv
+  trace_utils.py               # shared: LQD -> CUSIP matching, TRACE trade aggregation (source-agnostic)
+tests/                         # pytest unit tests for the Step 6 helpers (python -m pytest tests)
+data/
+  lqd_nport_holdings.csv       # LQD holdings per N-PORT (period 2026-05-31): CUSIP, ISIN, par, coupon, maturity
+  lqd_cusip_crosswalk.csv      # bond_id -> CUSIP for 3,062 of 3,143 LQD bonds (97.4%), with match method/score
+  trace_export/ (gitignored)   # your manual exports from FINRA's trade activity page go here
+  trace_activity_raw.csv (gitignored) # per-CUSIP activity over the window, written by 00c
+docs/superpowers/specs/        # design / decision records (Step 6 data-access investigation lives here)
 output/                        # generated by the scripts above
   benchmark_summary.json
   benchmark_targets.json
@@ -86,6 +99,11 @@ output/                        # generated by the scripts above
     step5_N_scaling.csv
     step5_summary.json
     charts/                    # 4 charts (frontier by dimension, dimension ranking, N scaling, yield path)
+  step6/                       # Step 6 proxy-validation tables, summary JSON, and charts/
+    step6_proxy_correlations.csv
+    step6_bond_level.csv
+    step6_summary.json         # headline correlations + plain-language verdict + trace_status
+    charts/                    # size read (always); activity read charts appear once TRACE data is present
 requirements.txt
 ```
 
@@ -109,7 +127,13 @@ cd .. && python scripts/03_liquidity_optimization.py && cd scripts   # NOTE: run
 python 04_performance_comparison.py   # Step 4 tables (reads Step 2/3 outputs)
 python 04b_comparison_charts.py       # Step 4 charts (reads the Step 4 tables)
 python 05_tradeoff_analysis.py        # Step 5 trade-off frontier analysis (reads the Step 4 tables)
+# Step 6 inputs (see the Step 6 paragraph above for the data-access reasoning)
+python 00b_build_cusip_crosswalk.py ../data/raw/LQD_NPORT-P_2026-05-31_primary_doc.xml   # EDGAR N-PORT -> data/lqd_cusip_crosswalk.csv
+python 00c_parse_finra_trade_export.py ../data/trace_export/*.csv                         # manual FINRA export(s) -> data/trace_activity_raw.csv
+python 06_liquidity_proxy_validation.py  # Step 6 proxy validation (size read always; activity read if data/trace_* present)
 ```
+
+Unit tests for the Step 6 helpers: `python -m pytest tests` from the repo root.
 
 Every script writes to `../output/` using paths relative to `scripts/`, so run them from inside `scripts/` as shown — **except `03_liquidity_optimization.py`**, which uses paths relative to the *repo root* (`data/...`, `output/...` with no `../`) and must be run as `python scripts/03_liquidity_optimization.py` from the repo root instead, or it fails with `FileNotFoundError` looking for `scripts/data/...`. This inconsistency is pre-existing in that script and hasn't been unified with the others' `__file__`-relative convention.
 
