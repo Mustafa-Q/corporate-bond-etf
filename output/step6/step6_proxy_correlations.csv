@@ -1,0 +1,4 @@
+comparison,x,y,n,spearman_rho,p_value
+par size vs same bond par share in QLTA/LQDB (size read),Par Value,xfund_par_share,2566,0.5265,5.403734270147781e-183
+"par size vs same bond par, QLTA only",Par Value,xfund_par,1714,0.7446,8.869320931213811e-303
+"par size vs same bond par, LQDB only",Par Value,xfund_par,852,0.3328,1.7614971591897178e-23

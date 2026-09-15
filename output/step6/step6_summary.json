@@ -1,0 +1,14 @@
+{
+  "window": {
+    "start": "2026-04-22",
+    "end": "2026-07-22"
+  },
+  "n_bonds_lqd": 3143,
+  "n_bonds_with_cross_fund_par": 2566,
+  "rho_par_vs_size_read": 0.5265,
+  "rho_par_vs_size_read_qlta_only": 0.7446,
+  "rho_par_vs_size_read_lqdb_only": 0.3328,
+  "trace_status": "missing",
+  "trace_note": "TRACE inputs not present: lqd_cusip_crosswalk.csv, trace_activity_raw.csv",
+  "verdict": "TRACE activity data not yet available; only the size read was computed. Par size vs the same bond's par in QLTA/LQDB: \u03c1=0.5265 over 2566 bonds."
+}

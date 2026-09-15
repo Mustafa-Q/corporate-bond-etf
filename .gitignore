@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+
+# FINRA-derived data: kept out of git until the licence question is settled (see docs/superpowers/specs/)
+data/trace_*
+data/finra_*
