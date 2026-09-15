@@ -79,19 +79,38 @@ Two files under `data/`, produced by whichever acquisition route is chosen:
   n_dealer_trades, median_trade_size`. A bond with a CUSIP but no prints appears with zeros
   (zero trades = maximally illiquid, not missing). A bond with no CUSIP does not appear.
 
-`00b_fetch_finra_trace_data.py` is **not** written until the access decision is made; the trade
-aggregation and CUSIP-matching logic it would need lives in `scripts/trace_utils.py` so it can be
-unit-tested on synthetic data now and reused by any acquisition script later.
+**Decision (2026-09-15, user):** the trade prints come from a **manual export** of FINRA's public
+*Corporate and Agency Trade Activity* page (personal, non-commercial use, no robot), dropped under
+`data/trace_export/` (gitignored) and converted by `00c_parse_finra_trade_export.py`, which keeps
+only the crosswalk's CUSIPs, de-duplicates overlapping exports, and writes
+`data/trace_activity_raw.csv`. No FINRA-derived file is committed; only `output/step6/` results are.
 
-### 3.2 CUSIP matching (`trace_utils.match_lqd_to_master`)
+### 3.2 CUSIP matching (`trace_utils.match_lqd_to_master`, driven by `00b_build_cusip_crosswalk.py`)
 
-The iShares file has no CUSIP. Match each LQD bond to the security master by
-**exact coupon (3 dp) + exact maturity date** to get candidates, then rank candidates by issuer-name
-similarity after normalisation (upper-case; strip `/THE`, `MTN`, `(FXD-FRN)`, `144A`, corporate
-suffixes; token-set Jaccard). Prefer the registered CUSIP (`is144A = N`, not a Reg S `U...` CUSIP)
-unless the LQD name carries `144A`. Below a similarity threshold → unmatched. Report matched /
-ambiguous / unmatched counts explicitly; never drop silently. Within LQD, 81 coupon+maturity keys
-are shared by 163 bonds, so the name step is required, not decorative.
+**Decision (2026-09-15): the CUSIP source is LQD's own Form N-PORT on EDGAR, not FINRA's
+security master.** SEC filings are public-domain, so nothing about the crosswalk is licence-bound.
+The filing used is iShares Trust accession 0001410368-26-075235 (filed 2026-07-24, period
+2026-05-31, series S000004361): 3,135 debt holdings, every one with CUSIP, ISIN, coupon, maturity
+and par balance. It predates the 2026-07-22 holdings snapshot by seven weeks, so bonds bought after
+May 31 (new issues such as SpaceX, Nvidia, Amazon lines) get no CUSIP from this route.
+
+Matching: candidates share maturity and coupon within ±0.015 (the two files round 5.805% to 5.8
+and 5.81 respectively), ranked by issuer-name similarity after normalisation (strip `/THE`, `MTN`,
+`(FXD-FRN)`, `144A`, legal suffixes; tokens count as shared when equal or prefix-equivalent, since
+the filing abbreviates `CAPITAL` → `CAP`, `COMMUNICATIONS` → `COMM`). Because the N-PORT describes the
+same portfolio, a lone candidate whose par balance sits within the typical N-PORT/iShares ratio band
+is accepted even when the name is unrecognisable (`IBM CORP` vs `INTERNATIONAL BUSINESS MACHINES`).
+CUSIPs are assigned one-to-one, best pair first. Result on the real data:
+
+| match_method | bonds | share |
+|---|---|---|
+| coupon_maturity_name | 2,971 | 94.5% |
+| coupon_maturity_size | 91 | 2.9% |
+| no_coupon_maturity_candidates (mostly post-May-31 issues) | 73 | 2.3% |
+| name_below_threshold | 8 | 0.3% |
+
+Unmatched bonds stay in the crosswalk with `cusip` empty and are excluded from the activity
+correlations, counted explicitly in `step6_match_report.csv`.
 
 ### 3.3 Activity metrics (`trace_utils.aggregate_trades`)
 

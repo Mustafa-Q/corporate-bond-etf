@@ -6,3 +6,4 @@ __pycache__/
 # FINRA-derived data: kept out of git until the licence question is settled (see docs/superpowers/specs/)
 data/trace_*
 data/finra_*
+data/raw/

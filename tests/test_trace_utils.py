@@ -37,6 +37,14 @@ def test_name_similarity_ignores_suffix_style():
     assert 0 < name_similarity('JPMORGAN CHASE & CO', 'JPMORGAN CHASE BANK NA') < 1
 
 
+def test_name_similarity_tolerates_filing_abbreviations():
+    assert name_similarity('CHARTER COMMUNICATIONS OPERATING LLC', 'CHARTER COMM OPT LLC/CAP') >= 0.34
+    assert name_similarity('BRITISH TELECOMMUNICATIONS PLC', 'BRITISH TELECOMMUNICATIO') == 1.0
+    assert name_similarity('GLAXOSMITHKLINE CAPITAL INC', 'GLAXOSMITHKLINE CAP INC') == 1.0
+    assert name_similarity('LOWES COMPANIES INC', "LOWE'S COS INC") >= 0.34
+    assert name_similarity('AT&T INC', 'ATMOS ENERGY') < 0.34        # 2-letter tokens never prefix-match
+
+
 # --- volume caps ------------------------------------------------------------------
 
 @pytest.mark.parametrize('raw, vol, capped', [
@@ -104,6 +112,61 @@ def test_match_reports_no_candidates_and_keeps_every_bond():
     assert list(xw['bond_id']) == [0, 1, 2]
     assert xw.loc[1, 'cusip'] == '38141GXX1'
     assert xw.loc[2, 'match_method'] == 'no_coupon_maturity_candidates'
+
+
+def test_match_coupon_tolerance_bridges_rounding_differences():
+    master = _master()
+    master.loc[4, 'couponRate'] = '6.7600000'          # other file rounded 6.755 the other way
+    xw = match_lqd_to_master(_bonds([(1, 'GOLDMAN SACHS GROUP INC/THE', 6.75, '2037-10-01')]), master)
+    assert xw.loc[0, 'cusip'] == '38141GXX1'
+    xw = match_lqd_to_master(_bonds([(1, 'GOLDMAN SACHS GROUP INC/THE', 6.70, '2037-10-01')]), master)
+    assert xw.loc[0, 'match_method'] == 'no_coupon_maturity_candidates'
+
+
+def test_match_is_one_to_one_and_loser_takes_next_candidate():
+    master = pd.DataFrame({
+        'cusip': ['AAA', 'BBB'],
+        'issuerName': ['ANHEUSER-BUSCH INBEV FINANCE INC', 'ANHEUSER-BUSCH COS LLC'],
+        'couponRate': [4.9, 4.9], 'maturityDate': ['2046-02-01', '2046-02-01'],
+    })
+    bonds = _bonds([(0, 'ANHEUSER-BUSCH COMPANIES LLC', 4.9, '2046-02-01'),
+                    (1, 'ANHEUSER-BUSCH INBEV FINANCE INC', 4.9, '2046-02-01')])
+    xw = match_lqd_to_master(bonds, master).set_index('bond_id')
+    assert xw.loc[1, 'cusip'] == 'AAA' and xw.loc[0, 'cusip'] == 'BBB'
+    assert xw['cusip'].is_unique
+
+
+def test_match_reports_when_only_cusip_is_taken():
+    master = pd.DataFrame({'cusip': ['AAA'], 'issuerName': ['META PLATFORMS INC'],
+                           'couponRate': [3.5], 'maturityDate': ['2027-08-15']})
+    bonds = _bonds([(0, 'META PLATFORMS INC', 3.5, '2027-08-15'), (1, 'META PLATFORMS INC', 3.5, '2027-08-15')])
+    xw = match_lqd_to_master(bonds, master).set_index('bond_id')
+    assert (xw['cusip'].notna()).sum() == 1
+    assert 'cusip_taken_by_better_match' in xw['match_method'].values
+
+
+def test_match_size_fallback_accepts_lone_candidate_with_agreeing_size():
+    master = pd.DataFrame({
+        'cusip': ['C1', 'C2', 'C3', 'C4'],
+        'issuerName': ['META PLATFORMS INC', 'GOLDMAN SACHS GROUP INC', 'IBM CORP', 'RTX CORP'],
+        'couponRate': [3.5, 6.75, 4.0, 4.0],
+        'maturityDate': ['2027-08-15', '2037-10-01', '2030-01-01', '2031-01-01'],
+        'size': [1000.0, 2000.0, 850.0, 50.0],
+    })
+    bonds = pd.DataFrame({
+        'bond_id': [0, 1, 2, 3],
+        'Name': ['META PLATFORMS INC', 'GOLDMAN SACHS GROUP INC/THE',
+                 'INTERNATIONAL BUSINESS MACHINES CORP', 'RAYTHEON TECHNOLOGIES CORPORATION'],
+        'Coupon (%)': [3.5, 6.75, 4.0, 4.0],
+        'Maturity': pd.to_datetime(['2027-08-15', '2037-10-01', '2030-01-01', '2031-01-01']),
+        'par': [1100.0, 2100.0, 900.0, 1000.0],
+    })
+    xw = match_lqd_to_master(bonds, master, size_cols=('par', 'size')).set_index('bond_id')
+    assert xw.loc[2, 'cusip'] == 'C3' and xw.loc[2, 'match_method'] == 'coupon_maturity_size'
+    assert pd.isna(xw.loc[3, 'cusip'])          # size ratio 0.05 is far outside the band
+    assert xw.loc[3, 'match_method'] == 'name_below_threshold'
+    # without size columns the fallback never fires
+    assert pd.isna(match_lqd_to_master(bonds, master).set_index('bond_id').loc[2, 'cusip'])
 
 
 # --- trade aggregation ------------------------------------------------------------

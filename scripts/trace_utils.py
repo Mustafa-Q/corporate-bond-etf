@@ -48,12 +48,29 @@ def normalize_issuer_name(name):
     return frozenset(tokens)
 
 
+def _tokens_equivalent(x, y):
+    """Exact, or one is a >=3-letter prefix of the other: filings abbreviate
+    ('CAP' ~ 'CAPITAL', 'COMM' ~ 'COMMUNICATIONS', 'TELECOMMUNICATIO' ~ 'TELECOMMUNICATIONS')."""
+    if x == y:
+        return True
+    short, long_ = (x, y) if len(x) <= len(y) else (y, x)
+    return len(short) >= 3 and long_.startswith(short)
+
+
 def name_similarity(a, b):
-    """Jaccard similarity of two normalised token sets (0..1)."""
+    """Jaccard-style similarity of two normalised token sets (0..1), where tokens
+    count as shared when equal or prefix-equivalent (see _tokens_equivalent)."""
     ta, tb = normalize_issuer_name(a), normalize_issuer_name(b)
     if not ta or not tb:
         return 0.0
-    return len(ta & tb) / len(ta | tb)
+    unused = set(tb)
+    shared = 0
+    for x in ta:
+        hit = next((y for y in unused if _tokens_equivalent(x, y)), None)
+        if hit is not None:
+            unused.discard(hit)
+            shared += 1
+    return shared / (len(ta) + len(tb) - shared)
 
 
 def parse_volume(v):
@@ -70,52 +87,96 @@ def parse_volume(v):
         return (np.nan, False)
 
 
-def match_lqd_to_master(bonds, master, min_similarity=0.34):
-    """Match each LQD bond to one CUSIP in a security master.
+def match_lqd_to_master(bonds, master, min_similarity=0.34, coupon_tol=0.0151, size_cols=None):
+    """Match each LQD bond to one CUSIP in a security master, one-to-one.
 
     bonds : DataFrame with bond_id, Name, Coupon (%), Maturity (datetime)
     master: DataFrame with cusip, issuerName, couponRate, maturityDate, and
             optionally is144A ('Y'/'N') and lastTradeDate
+    coupon_tol: coupons within this of each other count as equal. Sources round
+            differently (5.805% shows as 5.8 in one file and 5.81 in another).
+    size_cols: optional (bond_col, master_col) holding a position size in both files.
+            When the master describes the *same* portfolio (e.g. the fund's own N-PORT),
+            a lone coupon+maturity candidate whose size agrees with the typical ratio
+            is accepted even if the issuer name is abbreviated past recognition.
 
-    Candidates share exact coupon (3 dp) and maturity; the winner is the candidate with
-    the highest issuer-name similarity, preferring the registered line (is144A == 'N',
-    non-Reg S CUSIP) unless the LQD name says 144A, then the most recently traded.
-    Every bond_id gets exactly one row; unmatched bonds keep cusip = NaN and a
-    match_method explaining why. Nothing is dropped silently.
+    Candidates share maturity and (tolerant) coupon. Pairs are scored by issuer-name
+    similarity, then preference for the registered line (is144A == 'N', non-Reg S
+    CUSIP) unless the LQD name says 144A, then most recent trade. Accepted pairs are
+    assigned greedily best-first so no CUSIP serves two bonds. Every bond_id gets
+    exactly one row; unmatched bonds keep cusip = NaN and a match_method saying why.
     """
-    m = master.copy()
-    m['_coupon'] = pd.to_numeric(m['couponRate'], errors='coerce').round(3)
+    m = master.reset_index(drop=True).copy()
+    m['_coupon'] = pd.to_numeric(m['couponRate'], errors='coerce')
     m['_maturity'] = pd.to_datetime(m['maturityDate'], errors='coerce').dt.normalize()
     m['_is144a'] = m['is144A'].astype(str).str.upper().eq('Y') if 'is144A' in m else False
     m['_regs'] = m['cusip'].astype(str).str.upper().str.startswith('U')
     m['_last_trade'] = pd.to_datetime(m['lastTradeDate'], errors='coerce') if 'lastTradeDate' in m else pd.NaT
-    groups = {k: g for k, g in m.groupby(['_coupon', '_maturity'])}
+    m['_size'] = pd.to_numeric(m[size_cols[1]], errors='coerce') if size_cols else np.nan
+    by_maturity = {k: g for k, g in m.groupby('_maturity')}
+
+    cols = ['bond_id', 'Name', 'Coupon (%)', 'Maturity'] + ([size_cols[0]] if size_cols else [])
+    blist = bonds[cols].to_dict('records')
+    pairs = []          # (bond_pos, master_idx, sim, pref, coupon_diff, size_ratio)
+    n_cands, best_sim = {}, {}
+    for i, b in enumerate(blist):
+        mat = pd.Timestamp(b['Maturity']).normalize()
+        cpn = float(b['Coupon (%)'])
+        wants_144a = '144A' in str(b['Name']).upper()
+        g = by_maturity.get(mat)
+        if g is None:
+            n_cands[i] = 0
+            continue
+        c = g[(g['_coupon'] - cpn).abs() <= coupon_tol]
+        n_cands[i] = int(len(c))
+        for idx, row in c.iterrows():
+            sim = name_similarity(b['Name'], row['issuerName'])
+            pref = int(row['_is144a'] == wants_144a) * 2 + int(not row['_regs'])
+            ratio = (row['_size'] / float(b[size_cols[0]])) if size_cols and float(b[size_cols[0]] or 0) > 0 else np.nan
+            pairs.append((i, idx, sim, pref, abs(row['_coupon'] - cpn), ratio))
+            best_sim[i] = max(best_sim.get(i, 0.0), sim)
+
+    # size band from confident name matches, used only for the size fallback
+    lo, hi = None, None
+    if size_cols:
+        conf = [p[5] for p in pairs if p[2] >= min_similarity and np.isfinite(p[5])]
+        if conf:
+            med = float(np.median(conf))
+            lo, hi = 0.5 * med, 2.0 * med
+
+    def accepted(p):
+        if p[2] >= min_similarity:
+            return 'coupon_maturity_name'
+        if lo is not None and n_cands[p[0]] == 1 and np.isfinite(p[5]) and lo <= p[5] <= hi:
+            return 'coupon_maturity_size'
+        return None
+
+    ranked = sorted(pairs, key=lambda p: (-p[2], -p[3], p[4], abs(np.log(p[5])) if np.isfinite(p[5]) else 9.0))
+    assigned_bond, used_cusip = {}, set()
+    for p in ranked:
+        method = accepted(p)
+        if method is None or p[0] in assigned_bond or m.at[p[1], 'cusip'] in used_cusip:
+            continue
+        assigned_bond[p[0]] = (p, method)
+        used_cusip.add(m.at[p[1], 'cusip'])
 
     rows = []
-    for b in bonds[['bond_id', 'Name', 'Coupon (%)', 'Maturity']].to_dict('records'):
-        key = (round(float(b['Coupon (%)']), 3), pd.Timestamp(b['Maturity']).normalize())
-        wants_144a = '144A' in str(b['Name']).upper()
-        cands = groups.get(key)
+    for i, b in enumerate(blist):
         rec = {'bond_id': b['bond_id'], 'cusip': np.nan, 'match_method': 'no_coupon_maturity_candidates',
-               'match_score': np.nan, 'n_candidates': 0, 'n_name_matches': 0,
+               'match_score': np.nan, 'n_candidates': n_cands.get(i, 0), 'n_name_matches': 0,
                'finra_issuer_name': np.nan, 'is_144a': np.nan, 'moodys_rating': np.nan, 'sp_rating': np.nan}
-        if cands is not None and len(cands):
-            c = cands.copy()
-            c['_sim'] = [name_similarity(b['Name'], n) for n in c['issuerName']]
-            c['_pref'] = (c['_is144a'] == wants_144a).astype(int) * 2 + (~c['_regs']).astype(int)
-            c = c.sort_values(['_sim', '_pref', '_last_trade'], ascending=[False, False, False])
-            best = c.iloc[0]
-            rec.update(n_candidates=int(len(c)),
-                       n_name_matches=int((c['_sim'] >= min_similarity).sum()))
-            if best['_sim'] >= min_similarity:
-                rec.update(cusip=best['cusip'], match_score=float(best['_sim']),
-                           match_method='coupon_maturity_name',
-                           finra_issuer_name=best['issuerName'],
-                           is_144a='Y' if best['_is144a'] else 'N',
-                           moodys_rating=best.get('moodysRating', np.nan),
-                           sp_rating=best.get('standardAndPoorsRating', np.nan))
-            else:
-                rec.update(match_method='name_below_threshold', match_score=float(best['_sim']))
+        rec['n_name_matches'] = sum(1 for p in pairs if p[0] == i and p[2] >= min_similarity)
+        if i in assigned_bond:
+            p, method = assigned_bond[i]
+            row = m.loc[p[1]]
+            rec.update(cusip=row['cusip'], match_score=float(p[2]), match_method=method,
+                       finra_issuer_name=row['issuerName'], is_144a='Y' if row['_is144a'] else 'N',
+                       moodys_rating=row.get('moodysRating', np.nan),
+                       sp_rating=row.get('standardAndPoorsRating', np.nan))
+        elif n_cands.get(i, 0) > 0:
+            rec['match_score'] = float(best_sim.get(i, 0.0))
+            rec['match_method'] = ('cusip_taken_by_better_match' if rec['n_name_matches'] > 0
+                                   else 'name_below_threshold')
         rows.append(rec)
     return pd.DataFrame(rows)
 
