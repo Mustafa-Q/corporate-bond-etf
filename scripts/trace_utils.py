@@ -181,16 +181,21 @@ def match_lqd_to_master(bonds, master, min_similarity=0.34, coupon_tol=0.0151, s
     return pd.DataFrame(rows)
 
 
-def aggregate_trades(trades, window_start, window_end):
+def aggregate_trades(trades, window_start, window_end, volume_cap=None):
     """Per-CUSIP activity metrics from trade-level prints.
 
     trades: DataFrame with cusip, tradeExecutionDate, reportedTradeVolume and optionally
             tradeStatus ('M' trade / 'N' cancel / 'O' correction) and contraPartyTypeCode
             ('C' customer, 'D' dealer, 'A' affiliate, 'T' ATS).
+    volume_cap: optional per-print ceiling for sources whose volume is *uncapped* (WRDS
+            TRACE Enhanced). Prints at or above it are winsorised to the cap and counted
+            in n_capped_trades, so a handful of fat-finger $10B entries cannot dominate a
+            bond's summed volume.
     Cancels are dropped; corrections are kept as the surviving version of the print.
     Volume is a *floor* because of the public feed's caps; n_capped_trades says how often
     the cap bound. Only CUSIPs present in `trades` appear -- the caller adds zeros for
     matched bonds with no prints (zero trades is a real, maximally-illiquid observation).
+    Contra-party counts are NaN (not zero) when the source carries no contra-party field.
     """
     t = trades.copy()
     t['tradeExecutionDate'] = pd.to_datetime(t['tradeExecutionDate'], errors='coerce').dt.normalize()
@@ -201,7 +206,12 @@ def aggregate_trades(trades, window_start, window_end):
     parsed = t['reportedTradeVolume'].map(parse_volume)
     t['_vol'] = [p[0] for p in parsed]
     t['_capped'] = [p[1] for p in parsed]
-    cp = t['contraPartyTypeCode'].astype(str).str.upper() if 'contraPartyTypeCode' in t else pd.Series('', index=t.index)
+    if volume_cap is not None:
+        over = t['_vol'] >= volume_cap
+        t.loc[over, '_vol'] = float(volume_cap)
+        t['_capped'] = t['_capped'] | over
+    has_cp = 'contraPartyTypeCode' in t
+    cp = t['contraPartyTypeCode'].astype(str).str.upper() if has_cp else pd.Series('', index=t.index)
     t['_cust'] = cp.eq('C')
     t['_dealer'] = cp.isin(['D', 'T', 'A'])
 
@@ -211,13 +221,86 @@ def aggregate_trades(trades, window_start, window_end):
         'n_capped_trades': g['_capped'].sum().astype(int),
         'total_volume_floor': g['_vol'].sum(),
         'days_traded': g['tradeExecutionDate'].nunique(),
-        'n_customer_trades': g['_cust'].sum().astype(int),
-        'n_dealer_trades': g['_dealer'].sum().astype(int),
+        'n_customer_trades': g['_cust'].sum().astype(int) if has_cp else np.nan,
+        'n_dealer_trades': g['_dealer'].sum().astype(int) if has_cp else np.nan,
         'median_trade_size': g['_vol'].median(),
     }).reset_index()
     out.insert(1, 'window_start', ws.strftime('%Y-%m-%d'))
     out.insert(2, 'window_end', we.strftime('%Y-%m-%d'))
     return out
+
+
+WRDS_COLUMNS = ['cusip_id', 'trd_exctn_dt', 'trc_st', 'entrd_vol_qt', 'rptd_pr']
+_WRDS_MATCH_KEY = ['cusip_id', 'trd_exctn_dt', 'entrd_vol_qt', 'rptd_pr']
+
+
+def clean_wrds_enhanced(df):
+    """Turn a WRDS TRACE Enhanced (trace_enhanced.trace_enhanced) pull into the print
+    schema aggregate_trades expects, applying the trade-status cleaning.
+
+    df: DataFrame with cusip_id (str), trd_exctn_dt, trc_st, entrd_vol_qt, rptd_pr.
+        Extra columns (bond_sym_id, company_symbol) are ignored.
+
+    Cleaning (a reduced Dick-Nielsen 2014: the pull carries no msg_seq_nb, so cancels
+    are matched on attributes rather than sequence number):
+      T  normal trade report          -> the base set of prints
+      X  same-day cancel              -> removes ONE T print with identical
+      R  reversal of a prior report      cusip / execution date / volume / price;
+                                         unmatched (original before the window) -> dropped
+      C  correction                   -> dropped; the original T print stays as the single
+                                         count-bearing record (counts and days are unaffected,
+                                         only the corrected size/price is lost)
+      Y  and anything else            -> dropped
+    Returns (prints, stats). prints has cusip, tradeExecutionDate, reportedTradeVolume
+    (float, uncapped), lastSalePrice, tradeStatus (all 'M'). stats records every count.
+    """
+    missing = [c for c in WRDS_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f'WRDS pull lacks columns {missing}; expected {WRDS_COLUMNS}')
+    t = df[WRDS_COLUMNS].copy()
+    t['cusip_id'] = t['cusip_id'].astype(str).str.strip().str.upper()
+    t['trc_st'] = t['trc_st'].astype(str).str.strip().str.upper()
+    t['entrd_vol_qt'] = pd.to_numeric(t['entrd_vol_qt'], errors='coerce')
+    t['rptd_pr'] = pd.to_numeric(t['rptd_pr'], errors='coerce')
+    by_status = t['trc_st'].value_counts().to_dict()
+
+    base = t[t['trc_st'] == 'T'].copy()
+    base['_n'] = base.groupby(_WRDS_MATCH_KEY, dropna=False).cumcount()   # k-th identical print
+
+    def _match(status):
+        s = t[t['trc_st'] == status].copy()
+        s['_n'] = s.groupby(_WRDS_MATCH_KEY, dropna=False).cumcount()
+        hit = s.merge(base[_WRDS_MATCH_KEY + ['_n']], on=_WRDS_MATCH_KEY + ['_n'], how='left', indicator=True)
+        return s, int((hit['_merge'] == 'both').sum())
+
+    cancels, cancels_matched = _match('X')
+    reversals, reversals_matched = _match('R')
+    void = pd.concat([cancels, reversals], ignore_index=True)
+    # each X/R row knocks out the k-th identical T print, so a genuine duplicate print survives
+    void['_n'] = void.groupby(_WRDS_MATCH_KEY, dropna=False).cumcount()
+    keep = base.merge(void[_WRDS_MATCH_KEY + ['_n']], on=_WRDS_MATCH_KEY + ['_n'], how='left', indicator=True)
+    keep = keep[keep['_merge'] == 'left_only']
+
+    prints = pd.DataFrame({
+        'cusip': keep['cusip_id'].values,
+        'tradeExecutionDate': keep['trd_exctn_dt'].values,
+        'reportedTradeVolume': keep['entrd_vol_qt'].astype(float).values,
+        'lastSalePrice': keep['rptd_pr'].values,
+        'tradeStatus': 'M',
+    })
+    stats = {
+        'rows_in': int(len(t)),
+        'by_status': {k: int(v) for k, v in by_status.items()},
+        'cancels_matched': cancels_matched,
+        'cancels_unmatched': int(len(cancels)) - cancels_matched,
+        'reversals_matched': reversals_matched,
+        'reversals_unmatched': int(len(reversals)) - reversals_matched,
+        'corrections_dropped': int(by_status.get('C', 0)),
+        'other_status_dropped': int(sum(v for k, v in by_status.items() if k not in ('T', 'X', 'R', 'C'))),
+        'originals_removed': int(len(base) - len(prints)),
+        'rows_out': int(len(prints)),
+    }
+    return prints, stats
 
 
 ACTIVITY_COLUMNS = ['cusip', 'window_start', 'window_end', 'n_trades', 'n_capped_trades',

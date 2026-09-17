@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
-from trace_utils import (aggregate_trades, match_lqd_to_master, name_similarity,  # noqa: E402
+from trace_utils import (aggregate_trades, clean_wrds_enhanced, match_lqd_to_master, name_similarity,  # noqa: E402
                          normalize_issuer_name, parse_volume)
 
 
@@ -189,3 +189,76 @@ def test_aggregate_trades_metrics_caps_cancels_and_window():
     assert a['median_trade_size'] == 3500.0
     assert out.loc['B', 'n_trades'] == 1 and out.loc['B', 'n_dealer_trades'] == 1
     assert (out['window_start'] == '2026-04-22').all()
+
+
+def test_aggregate_trades_numeric_volume_cap_winsorises_and_flags():
+    trades = pd.DataFrame({
+        'cusip':               ['A', 'A', 'A'],
+        'tradeExecutionDate':  ['2025-09-05', '2025-09-05', '2025-09-08'],
+        'reportedTradeVolume': [1000.0, 50_000_000.0, 200_000_000.0],
+        'tradeStatus':         ['M', 'M', 'M'],
+    })
+    out = aggregate_trades(trades, '2025-09-04', '2025-12-04', volume_cap=100_000_000).set_index('cusip')
+    a = out.loc['A']
+    assert a['n_trades'] == 3
+    assert a['n_capped_trades'] == 1
+    assert a['total_volume_floor'] == 1000 + 50_000_000 + 100_000_000
+    assert a['median_trade_size'] == 50_000_000.0
+
+
+# --- WRDS TRACE Enhanced cleaning ---------------------------------------------------
+
+def _wrds(rows):
+    return pd.DataFrame(rows, columns=['cusip_id', 'trd_exctn_dt', 'trc_st', 'entrd_vol_qt', 'rptd_pr'])
+
+
+def test_clean_wrds_cancel_removes_exactly_one_matching_original():
+    df = _wrds([
+        ('001055BJ0', '2025-09-04', 'T', 100.0, 99.0),
+        ('001055BJ0', '2025-09-04', 'T', 100.0, 99.0),   # genuine duplicate print, must survive
+        ('001055BJ0', '2025-09-04', 'X', 100.0, 99.0),
+    ])
+    prints, stats = clean_wrds_enhanced(df)
+    assert len(prints) == 1
+    assert prints['cusip'].iloc[0] == '001055BJ0'            # leading zero intact
+    assert stats['cancels_matched'] == 1 and stats['cancels_unmatched'] == 0
+
+
+def test_clean_wrds_reversal_matches_prior_day_original_or_is_dropped():
+    df = _wrds([
+        ('A', '2025-09-04', 'T', 100.0, 99.0),
+        ('A', '2025-09-04', 'R', 100.0, 99.0),      # reverses the print above (same execution date)
+        ('A', '2025-09-05', 'R', 5.0, 90.0),        # original executed before the window: no match
+        ('A', '2025-09-05', 'T', 7.0, 91.0),
+    ])
+    prints, stats = clean_wrds_enhanced(df)
+    assert prints['reportedTradeVolume'].tolist() == [7.0]
+    assert stats['reversals_matched'] == 1 and stats['reversals_unmatched'] == 1
+
+
+def test_clean_wrds_corrections_and_y_dropped_original_kept():
+    df = _wrds([
+        ('A', '2025-09-04', 'T', 100.0, 99.0),
+        ('A', '2025-09-04', 'C', 100.0, 99.5),      # corrected version: dropped, the T stays as the one count
+        ('A', '2025-09-04', 'Y', 3.0, 1.0),
+    ])
+    prints, stats = clean_wrds_enhanced(df)
+    assert len(prints) == 1 and prints['reportedTradeVolume'].iloc[0] == 100.0
+    assert stats['rows_in'] == 3 and stats['rows_out'] == 1
+    assert stats['by_status'] == {'T': 1, 'C': 1, 'Y': 1}
+    assert stats['corrections_dropped'] == 1 and stats['other_status_dropped'] == 1
+
+
+def test_clean_wrds_output_feeds_aggregate_trades():
+    df = _wrds([
+        ('A', '2025-09-04', 'T', 100.0, 99.0),
+        ('A', '2025-09-05', 'T', 200.0, 99.0),
+        ('B', '2025-09-05', 'T', 5.0, 99.0),
+    ])
+    prints, _ = clean_wrds_enhanced(df)
+    assert list(prints.columns) == ['cusip', 'tradeExecutionDate', 'reportedTradeVolume', 'lastSalePrice', 'tradeStatus']
+    assert (prints['tradeStatus'] == 'M').all()
+    out = aggregate_trades(prints, '2025-09-04', '2025-12-04').set_index('cusip')
+    assert out.loc['A', 'n_trades'] == 2 and out.loc['A', 'days_traded'] == 2
+    assert out.loc['A', 'total_volume_floor'] == 300.0
+    assert out.loc['B', 'n_trades'] == 1
