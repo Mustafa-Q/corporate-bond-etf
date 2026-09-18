@@ -15,41 +15,41 @@
   "q2_yield_impact": {
     "50": {
       "min_ytm_%": 5.5634,
-      "max_ytm_%": 5.7278,
-      "range_bp": 16.4,
-      "max_abs_diff_vs_benchmark_pp": 0.1224
+      "max_ytm_%": 5.7224,
+      "range_bp": 15.9,
+      "max_abs_diff_vs_benchmark_pp": 0.1169
     },
     "100": {
-      "min_ytm_%": 5.5892,
-      "max_ytm_%": 5.6712,
-      "range_bp": 8.2,
-      "max_abs_diff_vs_benchmark_pp": 0.0657
+      "min_ytm_%": 5.5822,
+      "max_ytm_%": 5.6474,
+      "range_bp": 6.5,
+      "max_abs_diff_vs_benchmark_pp": 0.042
     },
     "200": {
-      "min_ytm_%": 5.597,
-      "max_ytm_%": 5.6689,
-      "range_bp": 7.2,
-      "max_abs_diff_vs_benchmark_pp": 0.0635
+      "min_ytm_%": 5.5481,
+      "max_ytm_%": 5.6084,
+      "range_bp": 6.0,
+      "max_abs_diff_vs_benchmark_pp": 0.0573
     }
   },
   "q3_hardest_to_preserve": {
     "pooled_ranking_normalized_0_100": {
-      "YTM abs. diff (pp)": 51.3,
-      "Rating L1 mismatch (pp)": 44.9,
-      "Sector L1 mismatch (pp)": 44.8,
+      "Duration abs. diff (yrs)": 58.8,
+      "Rating L1 mismatch (pp)": 48.3,
       "Top-10 issuer weight (%)": 42.4,
-      "Duration abs. diff (yrs)": 38.7,
-      "Issuer HHI": 37.8,
-      "Maturity L1 mismatch (pp)": 24.6
+      "Issuer HHI": 33.5,
+      "Sector L1 mismatch (pp)": 31.2,
+      "YTM abs. diff (pp)": 16.1,
+      "Maturity L1 mismatch (pp)": 10.5
     },
     "pooled_mean_corr_with_liquidity": {
-      "Duration abs. diff (yrs)": 0.21,
+      "Duration abs. diff (yrs)": 0.36,
       "Issuer HHI": 0.61,
-      "Maturity L1 mismatch (pp)": 0.08,
+      "Maturity L1 mismatch (pp)": 0.17,
       "Rating L1 mismatch (pp)": 0.24,
-      "Sector L1 mismatch (pp)": 0.31,
-      "Top-10 issuer weight (%)": 0.64,
-      "YTM abs. diff (pp)": 0.36
+      "Sector L1 mismatch (pp)": 0.22,
+      "Top-10 issuer weight (%)": 0.98,
+      "YTM abs. diff (pp)": 0.22
     },
     "low_confidence_dimensions": [
       "Duration abs. diff (yrs)",
@@ -63,21 +63,21 @@
   "q4_holdings_count_scaling": {
     "per_N": {
       "50": {
-        "liquidity_range_in_grid": 0.0414,
-        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 13.31,
-        "r_squared": 0.003,
+        "liquidity_range_in_grid": 0.0785,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": -5.13,
+        "r_squared": 0.001,
         "n_grid_points": 27
       },
       "100": {
-        "liquidity_range_in_grid": 0.0689,
-        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 121.36,
-        "r_squared": 0.306,
+        "liquidity_range_in_grid": 0.0864,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 78.58,
+        "r_squared": 0.096,
         "n_grid_points": 27
       },
       "200": {
-        "liquidity_range_in_grid": 0.0808,
-        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 58.35,
-        "r_squared": 0.102,
+        "liquidity_range_in_grid": 0.1295,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 34.14,
+        "r_squared": 0.137,
         "n_grid_points": 27
       }
     },
@@ -88,5 +88,5 @@
     ],
     "note": "sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly noise, not a reliable linear trend -- the marginal-cost-vs-N comparison should be read as directional at best, not a confident finding."
   },
-  "liquidity_score": "par"
+  "liquidity_score": "trace"
 }

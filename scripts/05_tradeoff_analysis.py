@@ -57,12 +57,9 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from portfolio_utils import load_bonds, compute_benchmark_targets, compute_rating_buckets
+from portfolio_utils import SCORES, load_bonds, compute_benchmark_targets, compute_rating_buckets, output_paths
 
-STEP4 = os.path.join(os.path.dirname(__file__), '..', 'output', 'step4')
-OUT = os.path.join(os.path.dirname(__file__), '..', 'output', 'step5')
-CH = os.path.join(OUT, 'charts')
-os.makedirs(CH, exist_ok=True)
+OUTPUT_ROOT = os.path.join(os.path.dirname(__file__), '..', 'output')
 
 SIZES = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (Step 3/4)
 
@@ -103,11 +100,15 @@ def pareto_efficient(df, y_col, x_col='liquidity_score'):
     return d.loc[keep].sort_values(x_col).reset_index(drop=True)
 
 
-def main():
+def main(score='par'):
+    paths = output_paths(score, root=OUTPUT_ROOT)
+    STEP4, OUT = paths['step4_dir'], paths['step5_dir']
+    CH = os.path.join(OUT, 'charts')
+    os.makedirs(CH, exist_ok=True)
     path = pd.read_csv(os.path.join(STEP4, 'step4_full_lambda_path.csv'))
     path = path[path.N.isin(SIZES)].copy()
 
-    bonds = load_bonds('../data/lqd_holdings_raw.csv', include_rating=False)
+    bonds = load_bonds('../data/lqd_holdings_raw.csv', include_rating=False, score=score)
     bonds['Rating_Bucket'] = compute_rating_buckets(
         bonds, qlta_path='../data/qlta_holdings_raw.csv', lqdb_path='../data/lqdb_holdings_raw.csv')
     targets = compute_benchmark_targets(bonds)
@@ -272,6 +273,7 @@ def main():
                     'should be read as directional at best, not a confident finding.',
         },
     }
+    summary['liquidity_score'] = score
     with open(os.path.join(OUT, 'step5_summary.json'), 'w') as f:
         json.dump(summary, f, indent=2)
 
@@ -373,4 +375,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--score', choices=SCORES, default='par', help='which Step 4 run to analyse (default: par)')
+    main(score=ap.parse_args().score)
