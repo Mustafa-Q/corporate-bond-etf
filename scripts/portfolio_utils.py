@@ -7,6 +7,8 @@ import os
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 
 AS_OF_DATE = pd.Timestamp('2026-07-22')
 MATURITY_BINS = [0, 1, 2, 3, 5, 7, 10, 15, 20, 100]
@@ -83,8 +85,90 @@ def compute_rating_buckets(bonds, qlta_path='data/qlta_holdings_raw.csv', lqdb_p
     return bonds['Rating_Bucket']
 
 
-def load_bonds(path='data/lqd_holdings_raw.csv', include_rating=True):
-    """Load and prep the bond-level benchmark universe (excludes cash/money market)."""
+TRACE_SOURCES = ('trace_full_window', 'trace_scaled', 'imputed_sector_maturity', 'imputed_sector', 'imputed_universe')
+
+
+def _trading_days(start, end):
+    """US bond-market trading days in [start, end]: weekdays minus US federal holidays."""
+    return int(len(pd.date_range(start, end, freq=CustomBusinessDay(calendar=USFederalHolidayCalendar()))))
+
+
+def build_trace_liquidity_score(bonds, data_dir, min_exposure_days=10, min_group=5):
+    """Liquidity score from real TRACE activity (Phase 2 of the Step 6 workstream; design in
+    docs/superpowers/specs/2026-09-17-trace-liquidity-score-phase2-design.md).
+
+    bonds: needs bond_id, Sector, Maturity_Bucket, Effective Date. Inputs read from data_dir:
+    lqd_cusip_crosswalk.csv (bond_id -> cusip) and trace_activity_raw.csv (per-CUSIP prints
+    over a window, written by 00d). Raises FileNotFoundError if either is absent.
+
+    Raw activity = prints in the window, per bond, by window exposure (iShares Effective Date):
+      outstanding for the full window      -> n_trades as is (0 for a silent bond)   trace_full_window
+      issued inside the window, >= min_exposure_days of trading-day exposure
+                                           -> n_trades / exposure days * window days trace_scaled
+      everything else (short exposure, issued after the window, no CUSIP)
+                                           -> median raw count of full-window peers in the same
+                                              Sector x Maturity_Bucket (>= min_group bonds), else
+                                              the sector median, else the universe median
+                                              imputed_sector_maturity / imputed_sector / imputed_universe
+    Score = normalised log1p(raw) on 0-1 (same transform as the par score), higher = more liquid.
+    Returns a frame aligned to bonds.index: trace_raw_count, Liquidity_Score_TRACE, Liquidity_Score_Source.
+    """
+    xw_path = os.path.join(data_dir, 'lqd_cusip_crosswalk.csv')
+    act_path = os.path.join(data_dir, 'trace_activity_raw.csv')
+    for p in (xw_path, act_path):
+        if not os.path.exists(p):
+            raise FileNotFoundError(f'the TRACE liquidity score needs {p}; run 00b/00d first')
+    xw = pd.read_csv(xw_path, dtype={'cusip': str})[['bond_id', 'cusip']]
+    act = pd.read_csv(act_path, dtype={'cusip': str})
+    ws, we = pd.Timestamp(act['window_start'].iloc[0]), pd.Timestamp(act['window_end'].iloc[0])
+    window_days = _trading_days(ws, we)
+    counts = act.set_index('cusip')['n_trades'].astype(float)
+
+    df = bonds[['bond_id', 'Sector', 'Maturity_Bucket', 'Effective Date']].merge(xw, on='bond_id', how='left')
+    df.index = bonds.index
+    eff = pd.to_datetime(df['Effective Date'], errors='coerce')
+    has_cusip = df['cusip'].notna()
+    n = df['cusip'].map(counts).fillna(0.0)          # matched but silent -> 0 prints
+    raw = pd.Series(np.nan, index=df.index, dtype=float)
+    src = pd.Series([None] * len(df), index=df.index, dtype=object)
+
+    full = has_cusip & (eff < ws)
+    raw[full] = n[full]
+    src[full] = 'trace_full_window'
+    for i in df.index[has_cusip & (eff >= ws) & (eff <= we)]:
+        exposure = _trading_days(eff[i], we)
+        if exposure >= min_exposure_days:
+            raw[i] = n[i] / exposure * window_days
+            src[i] = 'trace_scaled'
+
+    peers = raw[src == 'trace_full_window']
+    sector = df['Sector'].astype(str)
+    bucket = df['Maturity_Bucket'].astype(str)
+    by_sm = peers.groupby([sector[peers.index], bucket[peers.index]]).agg(['median', 'size'])
+    by_s = peers.groupby(sector[peers.index]).agg(['median', 'size'])
+    universe = float(peers.median())
+    for i in df.index[raw.isna()]:
+        key = (sector[i], bucket[i])
+        if key in by_sm.index and by_sm.loc[key, 'size'] >= min_group:
+            raw[i], src[i] = by_sm.loc[key, 'median'], 'imputed_sector_maturity'
+        elif key[0] in by_s.index and by_s.loc[key[0], 'size'] >= min_group:
+            raw[i], src[i] = by_s.loc[key[0], 'median'], 'imputed_sector'
+        else:
+            raw[i], src[i] = universe, 'imputed_universe'
+
+    lg = np.log1p(raw)
+    lo, hi = lg.min(), lg.max()
+    score = (lg - lo) / (hi - lo) if hi > lo else pd.Series(0.0, index=df.index)
+    return pd.DataFrame({'trace_raw_count': raw, 'Liquidity_Score_TRACE': score, 'Liquidity_Score_Source': src})
+
+
+def load_bonds(path='data/lqd_holdings_raw.csv', include_rating=True, score='par'):
+    """Load and prep the bond-level benchmark universe (excludes cash/money market).
+
+    score: which liquidity score becomes Liquidity_Score -- 'par' (normalised log par holding,
+    the historical proxy) or 'trace' (TRACE trading activity, see build_trace_liquidity_score).
+    Liquidity_Score_Par is always present; the TRACE columns are present whenever the TRACE
+    inputs sit next to the holdings file, and required when score='trace'."""
     df = pd.read_csv(path, parse_dates=['Maturity', 'Accrual Date', 'Effective Date'])
     bonds = df[df['Asset Class'] == 'Fixed Income'].copy().reset_index(drop=True)
 
@@ -102,7 +186,16 @@ def load_bonds(path='data/lqd_holdings_raw.csv', include_rating=True):
     # trade volume data is available) - documented here and in the write-up.
     bonds['Liquidity_Score_Raw'] = np.log(bonds['Par Value'].clip(lower=1))
     lo, hi = bonds['Liquidity_Score_Raw'].min(), bonds['Liquidity_Score_Raw'].max()
-    bonds['Liquidity_Score'] = (bonds['Liquidity_Score_Raw'] - lo) / (hi - lo)  # 0-1, higher = more liquid
+    bonds['Liquidity_Score_Par'] = (bonds['Liquidity_Score_Raw'] - lo) / (hi - lo)  # 0-1, higher = more liquid
+    # --- TRACE-activity score (Phase 2): the measured alternative to the par proxy ---
+    if score not in SCORES:
+        raise ValueError(f'score must be one of {SCORES}, got {score!r}')
+    try:
+        bonds = bonds.join(build_trace_liquidity_score(bonds, os.path.dirname(os.path.abspath(path))))
+    except FileNotFoundError:
+        if score == 'trace':
+            raise
+    bonds['Liquidity_Score'] = bonds['Liquidity_Score_Par'] if score == 'par' else bonds['Liquidity_Score_TRACE']
 
     if include_rating:
         try:
