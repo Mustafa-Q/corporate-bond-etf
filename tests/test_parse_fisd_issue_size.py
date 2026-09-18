@@ -64,3 +64,18 @@ def test_main_writes_file_and_report(tmp_path):
     got = pd.read_csv(out, dtype={'cusip': str})
     assert got['cusip'].iloc[0] == '001055BJ0'
     assert json.loads(rep.read_text())['source'].startswith('WRDS')
+
+
+def test_zero_amount_outstanding_is_treated_as_missing(tmp_path):
+    # FISD quirk: a few bonds carry AMOUNT_OUTSTANDING == 0 with a real OFFERING_AMT; a literal
+    # zero must not sort them as the smallest issues
+    f = tmp_path / 'fisd.csv'
+    f.write_text('MATURITY,OFFERING_AMT,OFFERING_DATE,COMPLETE_CUSIP,AMOUNT_OUTSTANDING,COUPON\n'
+                 '2033-05-15,750000,2023-05-01,001055BJ0,0,5.1\n'
+                 '2030-02-01,1000000,2020-02-01,00108WAU4,900000,4.0\n')
+    out, stats = parse.build_issue_size(str(f), _xw(tmp_path))
+    o = out.set_index('cusip')
+    assert pd.isna(o.loc['001055BJ0', 'amount_outstanding']) and o.loc['001055BJ0', 'offering_amt'] == 750_000_000.0
+    assert o.loc['00108WAU4', 'amount_outstanding'] == 900_000_000.0
+    assert stats['amount_outstanding_zero_treated_missing'] == 1
+    assert stats['bonds_with_amount_outstanding'] == 1

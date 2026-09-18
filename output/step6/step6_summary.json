@@ -62,12 +62,21 @@
     "n": 2566,
     "note": "LQD par vs the same bond's par share in QLTA/LQDB. A size-vs-size cross-fund consistency check, NOT a liquidity or tradability read."
   },
-  "issue_size_check": "not available: data/fisd_issue_size.csv absent (see 00e_parse_fisd_issue_size.py). The N-PORT balance is the ETF holding, not issuance.",
+  "issue_size_check": {
+    "rho_par_vs_issue_size": 0.8523,
+    "rho_par_vs_offering_amt": 0.8022,
+    "rho_issue_size_vs_days_traded": 0.3421,
+    "rho_issue_size_vs_n_trades": 0.3269,
+    "rho_issue_size_vs_volume_capped": 0.4912,
+    "n_bonds_with_issue_size": 3004,
+    "n_with_amount_outstanding": 3001,
+    "note": "FISD amount outstanding where known, else offering amount. The direct test of par holding ~ issue size."
+  },
   "limitations": [
     "Activity window ends 2025-12-04, ~7 months before the 2026-07-22 holdings snapshot (TRACE Enhanced embargo); liquidity is persistent over that horizon but the measures are not contemporaneous, and bonds issued after the window drop out of the headline.",
     "Cleaning: trc_st T kept; X cancels and R reversals remove one attribute-matched original each; C corrections and Y dropped with the original T kept (no msg_seq_nb in the pull). Volume winsorised per print at $100MM. See step6_trace_cleaning.json.",
     "days_traded saturates: most matched bonds print on nearly every trading day, so trade count discriminates better at the liquid end.",
     "No contra-party field in the WRDS pull, so customer vs dealer counts are unavailable."
   ],
-  "verdict": "Par holding size vs TRACE trading activity: Spearman \u03c1 = 0.33 (days traded), 0.30 (trade count) over 2,604 CUSIP-matched bonds outstanding for the full window (11 with zero prints, kept at zero); capped volume \u03c1 = 0.47. The association is moderate, so the reviewer's critique holds in substance: par holding size is a partial, noisy read of tradability. Among the top par decile, 1% of bonds traded on fewer than half of the 63 trading days. For context, LQD par agrees with another fund's sizing of the same bond at \u03c1 = 0.53 (size consistency, not a liquidity read)."
+  "verdict": "Par holding size vs TRACE trading activity: Spearman \u03c1 = 0.33 (days traded), 0.30 (trade count) over 2,604 CUSIP-matched bonds outstanding for the full window (11 with zero prints, kept at zero); capped volume \u03c1 = 0.47. The association is moderate, so the reviewer's critique holds in substance: par holding size is a partial, noisy read of tradability. Among the top par decile, 1% of bonds traded on fewer than half of the 63 trading days. For context, LQD par agrees with another fund's sizing of the same bond at \u03c1 = 0.53 (size consistency, not a liquidity read). Against true issue size (FISD, n=3,004), par holding has \u03c1 = 0.85 while issue size itself has \u03c1 = 0.33 with trade count."
 }

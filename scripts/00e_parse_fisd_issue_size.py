@@ -13,6 +13,8 @@ What to pull on WRDS (Mergent FISD -> Bond Issues, "Mergent FISD Issue" / fisd_m
 FISD reports amounts in thousands of dollars; the script converts to dollars, auto-detecting
 the unit from the median (LQD issues are $300MM+) unless --units is given. Duplicate CUSIPs
 (amount-outstanding history rows) keep the latest by date. Only crosswalk CUSIPs are kept.
+AMOUNT_OUTSTANDING == 0 (a FISD quirk on a few issues with a real OFFERING_AMT) is treated
+as missing so Step 6 falls back to the offering amount instead of ranking them smallest.
 
 Usage (from scripts/):
     python 00e_parse_fisd_issue_size.py ../data/raw/fisd_lqd.csv \
@@ -54,6 +56,11 @@ def build_issue_size(path, crosswalk_path, units='auto'):
     df = pd.DataFrame({'cusip': raw[cusip_col].astype(str).str.strip().str.upper()})
     for k, c in amt_cols.items():
         df[k] = pd.to_numeric(raw[c].astype(str).str.replace(',', ''), errors='coerce') if c else float('nan')
+    # FISD quirk: a handful of issues carry AMOUNT_OUTSTANDING == 0 with a real OFFERING_AMT. A
+    # literal zero would sort them as the smallest issues; treat it as missing so the offering
+    # amount is the fallback downstream.
+    zero_out = df['amount_outstanding'].eq(0)
+    df.loc[zero_out, 'amount_outstanding'] = float('nan')
     date_col = _find(raw.columns, DATE_COLS)
     df['_date'] = pd.to_datetime(raw[date_col], errors='coerce') if date_col else pd.NaT
     off_col = _find(raw.columns, ['offering_date', 'offer_date'])
@@ -80,6 +87,7 @@ def build_issue_size(path, crosswalk_path, units='auto'):
         'rows_read': int(n_raw), 'rows_in_lqd_universe': int(n_lqd), 'units_detected': units_detected,
         'bonds_with_issue_size': int(len(out)), 'cusips_in_crosswalk': int(len(xw)),
         'bonds_with_amount_outstanding': int(out['amount_outstanding'].notna().sum()),
+        'amount_outstanding_zero_treated_missing': int(zero_out.sum()),
         'columns_seen': list(raw.columns),
     }
     return out, stats

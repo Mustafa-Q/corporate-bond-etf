@@ -221,15 +221,36 @@ QLTA/LQDB) is ρ = 0.53 — previously mislabelled as a proxy read, now reported
 
 ### 5.5 Still open
 
-- **Amount outstanding** (FISD/Mergent). The pipeline side is built (2026-09-17):
-  `00e_parse_fisd_issue_size.py` parses a WRDS Mergent FISD export into `data/fisd_issue_size.csv`
-  (gitignored: a per-bond licensed field) and Step 6 adds `issue_size_check` — par vs issue size,
-  issue size vs TRACE activity — whenever the file exists. **The pull itself is pending.** On WRDS:
-  Mergent FISD → *Bond Issues* (`fisd_mergedissue`), CUSIP list = `data/lqd_cusips.txt` against
-  `COMPLETE_CUSIP`, variables `COMPLETE_CUSIP, OFFERING_AMT, OFFERING_DATE, MATURITY`; optionally
-  the *Amount Outstanding* history table (`AMOUNT_OUTSTANDING, EFFECTIVE_DATE`) for current size
-  (the parser keeps the latest dated row per CUSIP). FISD amounts are in $ thousands; the parser
-  converts (auto-detected, `--units` overrides). Save the export under `data/raw/`.
+- **Amount outstanding** (FISD/Mergent) — **pulled 2026-09-17**, see §6.
 - **Contra-party type** is not in the pull, so customer vs dealer counts are unavailable.
 - Whether to rebuild the optimiser's liquidity score on TRACE activity (Phases 2–3) is the
   user's call; nothing in Steps 3–5 was touched.
+
+## 6. The direct size test: Mergent FISD (2026-09-17)
+
+**Decision (user):** commit the FISD pull as `data/fisd_amount_outstanding.csv` (WRDS → Mergent
+FISD → Bond Issues, `fisd_mergedissue`, matched on `COMPLETE_CUSIP` from `data/lqd_cusips.txt`,
+offering-date range 1990-01 → 2026-09 with "include missing dates" — a first pull with a
+narrower date range returned only 1,362 bonds; do not re-narrow it). 3,004 of 3,062 CUSIPs,
+offering dates 1993-11 → 2026-05, amounts in $ thousands. `00e_parse_fisd_issue_size.py` writes
+`data/fisd_issue_size.csv` in dollars; three issues (`694308JG3/JH1/JJ7`) carry
+`AMOUNT_OUTSTANDING == 0` with a real offering amount and are treated as missing so the offering
+amount is the fallback. 272 bonds have amount outstanding ≠ offering amount (buybacks / partial
+calls); amount outstanding is primary.
+
+Coverage of the 3,062 CUSIP universe: 3,004 with FISD, 2,756 with TRACE prints, **2,714 with
+both**, 290 FISD-only (277 issued after the TRACE window, 2 inside it, 11 genuinely silent
+full-window bonds), 42 TRACE-only.
+
+Three-way Spearman result (`output/step6/step6_proxy_correlations.csv`):
+
+| pair | ρ | n |
+|---|---|---|
+| par holding ↔ FISD issue size (amount outstanding, offering fallback) | **0.85** | 3,004 |
+| par holding ↔ FISD offering amount | 0.80 | 3,004 |
+| par holding ↔ days traded / trade count / capped volume (full-window bonds) | 0.33 / 0.30 / 0.47 | 2,604 |
+| FISD issue size ↔ days traded / trade count / capped volume (full-window bonds) | 0.34 / 0.33 / 0.49 | 2,567 |
+
+Par holding is very nearly a rank copy of issue size, and issue size is itself only a moderate
+read of tradability. That is the reviewer's claim in its exact form: the par proxy measures
+issue size, and issue size ≠ liquidity. Chart 2 now shows the five bars side by side.

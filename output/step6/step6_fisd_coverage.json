@@ -1,0 +1,18 @@
+{
+  "source": "WRDS Mergent FISD (fisd_mergedissue), filtered on complete_cusip",
+  "rows_read": 3004,
+  "rows_in_lqd_universe": 3004,
+  "units_detected": "thousands",
+  "bonds_with_issue_size": 3004,
+  "cusips_in_crosswalk": 3062,
+  "bonds_with_amount_outstanding": 3001,
+  "amount_outstanding_zero_treated_missing": 3,
+  "columns_seen": [
+    "maturity",
+    "offering_amt",
+    "offering_date",
+    "complete_cusip",
+    "amount_outstanding",
+    "coupon"
+  ]
+}
