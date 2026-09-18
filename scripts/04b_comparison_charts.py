@@ -3,6 +3,7 @@ Step 4 - Comparison charts
 Renders the head-to-head visuals for the with- vs without-liquidity portfolios.
 Saves PNGs to ../output/step4/charts/.
 """
+import argparse
 import os, sys
 import numpy as np
 import pandas as pd
@@ -11,9 +12,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-OUT = os.path.join(os.path.dirname(__file__), '..', 'output', 'step4')
-CH = os.path.join(OUT, 'charts')
-os.makedirs(CH, exist_ok=True)
+from portfolio_utils import SCORES, output_paths
+
+OUTPUT_ROOT = os.path.join(os.path.dirname(__file__), '..', 'output')
 
 # --- palette (muted, consistent with the methodology doc) ---
 INK      = '#2b2a26'
@@ -30,11 +31,21 @@ plt.rcParams.update({
     'axes.spines.top': False, 'axes.spines.right': False,
 })
 
-head = pd.read_csv(os.path.join(OUT, 'step4_headline_comparison.csv'))
-sector = pd.read_csv(os.path.join(OUT, 'step4_sector_exposure.csv'))
-rating = pd.read_csv(os.path.join(OUT, 'step4_rating_exposure.csv'))
-maturity = pd.read_csv(os.path.join(OUT, 'step4_maturity_exposure.csv'))
-path = pd.read_csv(os.path.join(OUT, 'step4_full_lambda_path.csv'))
+# The chart functions read these module-level frames; main() fills them for the chosen score.
+OUT = CH = None
+head = sector = rating = maturity = path = None
+
+
+def load_inputs(score):
+    global OUT, CH, head, sector, rating, maturity, path
+    OUT = output_paths(score, root=OUTPUT_ROOT)['step4_dir']
+    CH = os.path.join(OUT, 'charts')
+    os.makedirs(CH, exist_ok=True)
+    head = pd.read_csv(os.path.join(OUT, 'step4_headline_comparison.csv'))
+    sector = pd.read_csv(os.path.join(OUT, 'step4_sector_exposure.csv'))
+    rating = pd.read_csv(os.path.join(OUT, 'step4_rating_exposure.csv'))
+    maturity = pd.read_csv(os.path.join(OUT, 'step4_maturity_exposure.csv'))
+    path = pd.read_csv(os.path.join(OUT, 'step4_full_lambda_path.csv'))
 
 
 # ============================================================
@@ -187,6 +198,9 @@ def chart_concentration_yield():
 
 
 if __name__ == '__main__':
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--score', choices=SCORES, default='par', help='which Step 4 run to chart (default: par)')
+    load_inputs(ap.parse_args().score)
     chart_mismatch()
     chart_sector()
     chart_rating_maturity()

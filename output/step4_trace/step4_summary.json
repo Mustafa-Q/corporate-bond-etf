@@ -1,0 +1,42 @@
+{
+  "comparison": {
+    "without_liquidity_lambda": 0.0,
+    "with_liquidity_lambda": 1.0
+  },
+  "liquidity_score": "trace",
+  "sizes": [
+    50,
+    100,
+    200
+  ],
+  "benchmark": {
+    "ytm_%": 5.6054,
+    "duration": 7.8573
+  },
+  "per_N": {
+    "50": {
+      "liquidity_gain": 0.0756,
+      "yield_change_pp": 0.0976,
+      "sector_mismatch_change_pp": 0.771,
+      "rating_mismatch_change_pp": 0.518,
+      "duration_diff_change": 0.236,
+      "top10_issuer_change_pp": -0.0
+    },
+    "100": {
+      "liquidity_gain": 0.084,
+      "yield_change_pp": -0.0018,
+      "sector_mismatch_change_pp": 9.669,
+      "rating_mismatch_change_pp": 0.517,
+      "duration_diff_change": 0.167,
+      "top10_issuer_change_pp": 3.64
+    },
+    "200": {
+      "liquidity_gain": 0.1256,
+      "yield_change_pp": -0.0351,
+      "sector_mismatch_change_pp": 5.187,
+      "rating_mismatch_change_pp": 1.73,
+      "duration_diff_change": 0.2,
+      "top10_issuer_change_pp": 13.22
+    }
+  }
+}

@@ -147,3 +147,82 @@ the user confirms the chosen source's licence permits redistribution.
 ## 4. Out of scope (unchanged from the brief)
 
 N=25 exclusion, the rating proxy, the 27-point λ grid, and the non-monotonic sweep residuals.
+
+## 5. Phase 1 data landed: WRDS TRACE Enhanced (2026-09-17)
+
+**Decision (2026-09-17, user):** the trade prints come from **WRDS TRACE Enhanced** (table
+`trace_enhanced.trace_enhanced`, filtered on `cusip_id` with `data/lqd_cusips.txt`, the 3,062
+CUSIPs from the N-PORT crosswalk), not from a manual export of FINRA's public page. This
+supersedes the manual-export decision in §3.1; `00c_parse_finra_trade_export.py` stays as the
+parser for that route but is not used.
+
+### 5.1 What was pulled
+
+7 columns (`cusip_id, trd_exctn_dt, bond_sym_id, company_symbol, trc_st, entrd_vol_qt, rptd_pr`),
+3,760,163 trade rows, execution dates 2025-09-04 → 2025-12-04 (the latest window available under
+the ~6-month embargo), 2,756 distinct CUSIPs. The raw file (~206 MB) lives at
+`data/raw/wrds_trace_enhanced.csv`, gitignored: WRDS data is licensed and not redistributable.
+The per-CUSIP aggregate `data/trace_activity_raw.csv` (2,756 rows, derived statistics) **is**
+committed, as are the cleaning statistics in `output/step6/step6_trace_cleaning.json`.
+
+### 5.2 Cleaning (`trace_utils.clean_wrds_enhanced`, driven by `00d_parse_wrds_trace_enhanced.py`)
+
+A reduced Dick-Nielsen (2014): the pull carries no `msg_seq_nb`, so cancels are matched on
+attributes rather than sequence number.
+
+| `trc_st` | rows | treatment |
+|---|---|---|
+| T trade | 3,729,862 | base set of prints |
+| X same-day cancel | 10,358 | each removes one T print with identical CUSIP / execution date / volume / price (10,342 matched) |
+| R reversal | 9,966 | same matching (7,875 matched; the 2,091 unmatched reverse trades executed before the window and are dropped) |
+| C correction | 9,938 | dropped; the original T print stays as the single count-bearing record |
+| Y | 39 | dropped |
+
+3,711,731 prints kept. Volume on WRDS is uncapped, but the pull contains fat-finger entries of
+$1–10B par (most of them subsequently cancelled). After cancel matching, prints are winsorised at
+**$100MM per print** (the 99.99th percentile; 477 prints affected, counted in `n_capped_trades`)
+so a handful of entries cannot dominate a bond's summed volume. Days traded and trade count are
+the primary measures precisely because they are immune to this.
+
+### 5.3 The universe correction: silent ≠ illiquid
+
+The brief assumed the 306 matched CUSIPs with no prints were "maximally illiquid". They are not:
+the holdings snapshot (2026-07-22) post-dates the TRACE window by seven months, and the iShares
+*Effective Date* shows **293 of the 306 were issued after 2025-12-04** (they could not have
+printed) and 2 inside the window. Only **11** bonds outstanding for the whole window never
+printed. Step 6 therefore classifies every matched bond by window exposure and computes the
+headline on the **2,604 bonds outstanding for the full window** (159 issued inside the window
+and 299 issued after it are excluded; 81 bonds have no CUSIP). The 11 true zero-print bonds enter
+at zero, tied at the bottom of the rank. A "naive" sensitivity row keeps every matched bond with
+new issues at zero and shows how far that distorts the read (ρ falls from 0.33 to 0.20 on days
+traded).
+
+### 5.4 Result
+
+Spearman rank correlation of LQD par holding with TRACE activity, 2,604 full-window bonds:
+
+| measure | ρ | traded-only (n=2,593) |
+|---|---|---|
+| days traded (primary) | 0.33 | 0.33 |
+| trade count (primary) | 0.30 | 0.30 |
+| volume, capped (secondary) | 0.47 | 0.47 |
+
+Verdict rule, fixed before the numbers were seen: judged on the better of the two primary
+measures, ρ < 0.3 weak, 0.3–0.6 moderate, ≥ 0.6 strong. Result: **moderate (0.33)**. Par holding
+size is a partial, noisy read of tradability — the reviewer's critique holds in substance, though
+not in the "parked issue" form: among the top par decile only 0.8% of bonds traded on fewer than
+half of the 63 trading days (median 64 days traded, vs 62 in the bottom decile). In LQD nearly
+every bond prints almost every day; what par size fails to rank is the *intensity* of trading
+(median 1,551 prints in the top par decile vs 621 in the bottom). Days traded therefore saturates
+and trade count / volume discriminate better at the liquid end.
+
+For context only, the cross-fund size-consistency check (LQD par vs the same bond's par share in
+QLTA/LQDB) is ρ = 0.53 — previously mislabelled as a proxy read, now reported as what it is.
+
+### 5.5 Still open
+
+- **Amount outstanding** (FISD/Mergent `offering_amt`) has not been pulled; the direct test of
+  "par ≈ issue size" remains a gap. The activity read is the stronger test and stands on its own.
+- **Contra-party type** is not in the pull, so customer vs dealer counts are unavailable.
+- Whether to rebuild the optimiser's liquidity score on TRACE activity (Phases 2–3) is the
+  user's call; nothing in Steps 3–5 was touched.

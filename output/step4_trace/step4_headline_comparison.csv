@@ -1,0 +1,34 @@
+N,dimension,without_liquidity (lambda=0.0),with_liquidity (lambda=1.0),change,objective,verdict
+50,Weighted-avg liquidity score,0.6695,0.7451,0.0756,higher,liquidity better
+50,Yield to maturity (%),5.5634,5.6609,0.0976,match,reference level
+50,YTM abs. diff vs benchmark (pp),0.0421,0.0555,0.0134,lower,liquidity worse
+50,Effective duration (yrs),7.867,7.611,-0.256,match,reference level
+50,Duration abs. diff vs benchmark (yrs),0.01,0.246,0.236,lower,liquidity worse
+50,Sector L1 mismatch (pp),14.591,15.362,0.771,lower,liquidity worse
+50,Rating L1 mismatch (pp),0.186,0.703,0.518,lower,liquidity worse
+50,Maturity L1 mismatch (pp),5.54,2.003,-3.537,lower,liquidity better
+50,Top-10 issuer weight (%),30.0,30.0,-0.0,lower,liquidity better
+50,Max single-issuer weight (%),3.0,3.0,-0.0,lower,liquidity better
+50,Issuer HHI,267.1,269.0,1.9,lower,liquidity worse
+100,Weighted-avg liquidity score,0.6845,0.7685,0.084,higher,liquidity better
+100,Yield to maturity (%),5.6054,5.6037,-0.0018,match,reference level
+100,YTM abs. diff vs benchmark (pp),0.0,0.0018,0.0018,lower,liquidity worse
+100,Effective duration (yrs),7.857,7.69,-0.167,match,reference level
+100,Duration abs. diff vs benchmark (yrs),0.0,0.167,0.167,lower,liquidity worse
+100,Sector L1 mismatch (pp),1.226,10.895,9.669,lower,liquidity worse
+100,Rating L1 mismatch (pp),0.0,0.517,0.517,lower,liquidity worse
+100,Maturity L1 mismatch (pp),0.1,3.321,3.221,lower,liquidity worse
+100,Top-10 issuer weight (%),26.36,30.0,3.64,lower,liquidity worse
+100,Max single-issuer weight (%),2.92,3.0,0.08,lower,liquidity worse
+100,Issuer HHI,180.2,245.0,64.7,lower,liquidity worse
+200,Weighted-avg liquidity score,0.6581,0.7837,0.1256,higher,liquidity better
+200,Yield to maturity (%),5.6054,5.5703,-0.0351,match,reference level
+200,YTM abs. diff vs benchmark (pp),0.0,0.0351,0.0351,lower,liquidity worse
+200,Effective duration (yrs),7.857,7.658,-0.2,match,reference level
+200,Duration abs. diff vs benchmark (yrs),0.0,0.2,0.2,lower,liquidity worse
+200,Sector L1 mismatch (pp),0.669,5.856,5.187,lower,liquidity worse
+200,Rating L1 mismatch (pp),0.0,1.73,1.73,lower,liquidity worse
+200,Maturity L1 mismatch (pp),0.1,2.233,2.132,lower,liquidity worse
+200,Top-10 issuer weight (%),16.78,30.0,13.22,lower,liquidity worse
+200,Max single-issuer weight (%),2.02,3.0,0.98,lower,liquidity worse
+200,Issuer HHI,102.4,212.9,110.5,lower,liquidity worse

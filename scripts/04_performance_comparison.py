@@ -25,12 +25,12 @@ Outputs (../output/step4/):
 import sys, os, json, glob
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
-import pandas as pd
-from portfolio_utils import load_bonds, compute_benchmark_targets, evaluate_portfolio
+import argparse
 
-OUT = os.path.join(os.path.dirname(__file__), '..', 'output', 'step4')
-LIQ = os.path.join(os.path.dirname(__file__), '..', 'output', 'liquidity')
-os.makedirs(OUT, exist_ok=True)
+import pandas as pd
+from portfolio_utils import SCORES, load_bonds, compute_benchmark_targets, evaluate_portfolio, output_paths
+
+OUTPUT_ROOT = os.path.join(os.path.dirname(__file__), '..', 'output')
 
 # lambda=0.0 is the "without liquidity" baseline; 1.0 the primary "with liquidity" book
 NOLIQ_LAMBDA = 0.0
@@ -40,22 +40,25 @@ ALL_LAMBDAS = [0.0, 0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04,
                0.075, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 
-def load_weight_vector(bonds, n, lam):
+def load_weight_vector(bonds, n, lam, weights_dir):
     """Reconstruct a full-length (len==universe) weight vector from a saved file."""
     fname = f'optimization_liquidity_N{n}_lambda{lam}.csv'
-    path = os.path.join(LIQ, fname)
+    path = os.path.join(weights_dir, fname)
     p = pd.read_csv(path)
     w = np.zeros(len(bonds))
     w[p['bond_id'].values] = p['Sampled_Weight'].values
     return w / w.sum()
 
 
-def main():
+def main(score='par'):
+    paths = output_paths(score, root=OUTPUT_ROOT)
+    OUT, LIQ = paths['step4_dir'], paths['weights_dir']
+    os.makedirs(OUT, exist_ok=True)
     # load_bonds -> compute_rating_buckets uses default paths relative to CWD and
     # silently falls back to all-Unknown on FileNotFoundError. Build ratings with
     # explicit paths so the A-or-better / BBB split is populated regardless of CWD.
     from portfolio_utils import compute_rating_buckets
-    bonds = load_bonds('../data/lqd_holdings_raw.csv', include_rating=False)
+    bonds = load_bonds('../data/lqd_holdings_raw.csv', include_rating=False, score=score)
     bonds['Rating_Bucket'] = compute_rating_buckets(
         bonds, qlta_path='../data/qlta_holdings_raw.csv', lqdb_path='../data/lqdb_holdings_raw.csv')
     targets = compute_benchmark_targets(bonds)
@@ -64,7 +67,7 @@ def main():
     evals = {}
     for n in SIZES:
         for lam in ALL_LAMBDAS:
-            w = load_weight_vector(bonds, n, lam)
+            w = load_weight_vector(bonds, n, lam, LIQ)
             evals[(n, lam)] = evaluate_portfolio(bonds, w, targets)
 
     # ================================================================
@@ -162,6 +165,7 @@ def main():
     # ================================================================
     summary = {
         'comparison': {'without_liquidity_lambda': NOLIQ_LAMBDA, 'with_liquidity_lambda': WITHLIQ_LAMBDA},
+        'liquidity_score': score,
         'sizes': SIZES,
         'benchmark': {'ytm_%': round(targets['ytm'], 4), 'duration': round(targets['duration'], 4)},
         'per_N': {},
@@ -187,4 +191,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--score', choices=SCORES, default='par', help='which Step 3 sweep to evaluate (default: par)')
+    main(score=ap.parse_args().score)

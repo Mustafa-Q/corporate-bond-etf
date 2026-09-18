@@ -1,14 +1,73 @@
 {
-  "window": {
-    "start": "2026-04-22",
-    "end": "2026-07-22"
+  "holdings_as_of": "2026-07-22",
+  "trace_status": "available",
+  "trace_note": "3062/3143 bonds matched to a CUSIP: 2604 outstanding for the full window, 159 issued inside it, 299 issued after the window (cannot have printed); 11 matched bonds outstanding for the full window had zero prints (kept at zero); 81 unmatched bonds excluded from activity correlations",
+  "activity_window": {
+    "start": "2025-09-04",
+    "end": "2025-12-04",
+    "trading_days": 63,
+    "source": "WRDS TRACE Enhanced; cleaning in step6_trace_cleaning.json"
   },
-  "n_bonds_lqd": 3143,
-  "n_bonds_with_cross_fund_par": 2566,
-  "rho_par_vs_size_read": 0.5265,
-  "rho_par_vs_size_read_qlta_only": 0.7446,
-  "rho_par_vs_size_read_lqdb_only": 0.3328,
-  "trace_status": "missing",
-  "trace_note": "TRACE inputs not present: lqd_cusip_crosswalk.csv, trace_activity_raw.csv",
-  "verdict": "TRACE activity data not yet available; only the size read was computed. Par size vs the same bond's par in QLTA/LQDB: \u03c1=0.5265 over 2566 bonds."
+  "universe": {
+    "n_bonds_lqd": 3143,
+    "n_bonds_with_cusip": 3062,
+    "n_bonds_traded_in_window": 2756,
+    "n_matched_zero_prints_any_reason": 306,
+    "n_unmatched_bonds": 81,
+    "by_window_exposure": {
+      "full_window": 2604,
+      "issued_in_window": 159,
+      "issued_after_window": 299
+    },
+    "headline_universe": "full_window",
+    "n_headline": 2604,
+    "n_headline_zero_trade": 11,
+    "note": "A matched bond with no prints is only \"maximally illiquid\" if it existed for the whole window; bonds issued after the window are excluded from the headline, bonds issued inside it had partial exposure and are excluded too."
+  },
+  "headline": {
+    "rho_par_vs_days_traded": 0.3307,
+    "rho_par_vs_n_trades": 0.3038,
+    "rho_par_vs_volume_capped": 0.4687,
+    "n": 2604,
+    "note": "Spearman over CUSIP-matched bonds outstanding for the full window; the zero-print bonds among them enter at zero (tied at the bottom)"
+  },
+  "sensitivity_traded_only": {
+    "rho_par_vs_days_traded": 0.3312,
+    "rho_par_vs_n_trades": 0.304,
+    "rho_par_vs_volume_capped": 0.4703,
+    "n": 2593
+  },
+  "sensitivity_naive_all_matched": {
+    "rho_par_vs_days_traded": 0.1954,
+    "rho_par_vs_n_trades": 0.2255,
+    "rho_par_vs_volume_capped": 0.3281,
+    "n": 3062,
+    "note": "what the headline would read if post-window new issues were wrongly treated as zero-activity bonds"
+  },
+  "current_liquidity_score": {
+    "rho_vs_days_traded": 0.3307,
+    "rho_vs_n_trades": 0.3038
+  },
+  "parked_issue_check": {
+    "top_par_decile_share_trading_under_half_of_days": 0.0077,
+    "median_days_traded_top_par_decile": 64.0,
+    "median_days_traded_bottom_par_decile": 62.0,
+    "median_trades_top_par_decile": 1551.0,
+    "median_trades_bottom_par_decile": 621.0
+  },
+  "size_consistency_check": {
+    "rho_par_vs_cross_fund_par_share": 0.5265,
+    "rho_qlta_only": 0.7446,
+    "rho_lqdb_only": 0.3328,
+    "n": 2566,
+    "note": "LQD par vs the same bond's par share in QLTA/LQDB. A size-vs-size cross-fund consistency check, NOT a liquidity or tradability read."
+  },
+  "amount_outstanding": "not available: FISD/Mergent offering_amt has not been pulled; the N-PORT balance is the ETF holding, not issuance. The TRACE activity read is the stronger test of the critique and stands on its own.",
+  "limitations": [
+    "Activity window ends 2025-12-04, ~7 months before the 2026-07-22 holdings snapshot (TRACE Enhanced embargo); liquidity is persistent over that horizon but the measures are not contemporaneous, and bonds issued after the window drop out of the headline.",
+    "Cleaning: trc_st T kept; X cancels and R reversals remove one attribute-matched original each; C corrections and Y dropped with the original T kept (no msg_seq_nb in the pull). Volume winsorised per print at $100MM. See step6_trace_cleaning.json.",
+    "days_traded saturates: most matched bonds print on nearly every trading day, so trade count discriminates better at the liquid end.",
+    "No contra-party field in the WRDS pull, so customer vs dealer counts are unavailable."
+  ],
+  "verdict": "Par holding size vs TRACE trading activity: Spearman \u03c1 = 0.33 (days traded), 0.30 (trade count) over 2,604 CUSIP-matched bonds outstanding for the full window (11 with zero prints, kept at zero); capped volume \u03c1 = 0.47. The association is moderate, so the reviewer's critique holds in substance: par holding size is a partial, noisy read of tradability. Among the top par decile, 1% of bonds traded on fewer than half of the 63 trading days. For context, LQD par agrees with another fund's sizing of the same bond at \u03c1 = 0.53 (size consistency, not a liquidity read)."
 }

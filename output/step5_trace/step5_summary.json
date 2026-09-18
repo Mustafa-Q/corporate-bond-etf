@@ -1,0 +1,92 @@
+{
+  "sizes": [
+    50,
+    100,
+    200
+  ],
+  "benchmark": {
+    "ytm_%": 5.6054,
+    "duration": 7.8573
+  },
+  "q1_accuracy_loss": {
+    "method": "Pareto-efficient (liquidity_score, mismatch) points per dimension per N; see step5_pareto_frontier.csv",
+    "note": "Sector L1 and issuer concentration are the steepest frontiers (biggest pp cost per unit of liquidity gained); rating and duration frontiers are comparatively flat."
+  },
+  "q2_yield_impact": {
+    "50": {
+      "min_ytm_%": 5.5634,
+      "max_ytm_%": 5.7224,
+      "range_bp": 15.9,
+      "max_abs_diff_vs_benchmark_pp": 0.1169
+    },
+    "100": {
+      "min_ytm_%": 5.5822,
+      "max_ytm_%": 5.6474,
+      "range_bp": 6.5,
+      "max_abs_diff_vs_benchmark_pp": 0.042
+    },
+    "200": {
+      "min_ytm_%": 5.5481,
+      "max_ytm_%": 5.6084,
+      "range_bp": 6.0,
+      "max_abs_diff_vs_benchmark_pp": 0.0573
+    }
+  },
+  "q3_hardest_to_preserve": {
+    "pooled_ranking_normalized_0_100": {
+      "Duration abs. diff (yrs)": 58.8,
+      "Rating L1 mismatch (pp)": 48.3,
+      "Top-10 issuer weight (%)": 42.4,
+      "Issuer HHI": 33.5,
+      "Sector L1 mismatch (pp)": 31.2,
+      "YTM abs. diff (pp)": 16.1,
+      "Maturity L1 mismatch (pp)": 10.5
+    },
+    "pooled_mean_corr_with_liquidity": {
+      "Duration abs. diff (yrs)": 0.36,
+      "Issuer HHI": 0.61,
+      "Maturity L1 mismatch (pp)": 0.17,
+      "Rating L1 mismatch (pp)": 0.24,
+      "Sector L1 mismatch (pp)": 0.22,
+      "Top-10 issuer weight (%)": 0.98,
+      "YTM abs. diff (pp)": 0.22
+    },
+    "low_confidence_dimensions": [
+      "Duration abs. diff (yrs)",
+      "Maturity L1 mismatch (pp)",
+      "Rating L1 mismatch (pp)",
+      "Sector L1 mismatch (pp)",
+      "YTM abs. diff (pp)"
+    ],
+    "note": "Each dimension min-max scaled to 0-100 using its global range across the entire grid (all N x all lambda); degradation = normalized(worst on the Pareto frontier) - normalized(lambda=0 baseline), averaged across N=50/100/200. Global scaling avoids dividing by a near-zero lambda=0 baseline (duration and rating mismatch are both ~0 at lambda=0, which broke a naive %-change ranking), and \"worst\" is taken from the Pareto-efficient subset (see step5_pareto_frontier.csv) rather than the raw grid max, so an off-frontier noise point (e.g. a spike at a tiny lambda that's dominated by better points elsewhere in the grid) can't set the ranking by itself. low_confidence_dimensions (mean correlation with liquidity_score < 0.5, see pooled_mean_corr_with_liquidity) still trend the right direction but noisily -- read their magnitude as directional, not precise. Dimensions with high pooled correlation are the most reliably \"hardest to preserve\": check pooled_mean_corr_with_liquidity against pooled_ranking_normalized_0_100 together, since a dimension can rank high on magnitude alone from a wide but inconsistent swing."
+  },
+  "q4_holdings_count_scaling": {
+    "per_N": {
+      "50": {
+        "liquidity_range_in_grid": 0.0785,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": -5.13,
+        "r_squared": 0.001,
+        "n_grid_points": 27
+      },
+      "100": {
+        "liquidity_range_in_grid": 0.0864,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 78.58,
+        "r_squared": 0.096,
+        "n_grid_points": 27
+      },
+      "200": {
+        "liquidity_range_in_grid": 0.1295,
+        "sector_mismatch_ols_slope_pp_per_liquidity_pt": 34.14,
+        "r_squared": 0.137,
+        "n_grid_points": 27
+      }
+    },
+    "weak_fit_Ns": [
+      50,
+      100,
+      200
+    ],
+    "note": "sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly noise, not a reliable linear trend -- the marginal-cost-vs-N comparison should be read as directional at best, not a confident finding."
+  },
+  "liquidity_score": "trace"
+}

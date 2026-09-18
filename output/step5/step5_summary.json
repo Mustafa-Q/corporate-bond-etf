@@ -87,5 +87,6 @@
       200
     ],
     "note": "sector_mismatch_ols_slope is a full-grid OLS fit of sector_L1_pp on liquidity_score. r_squared < 0.5 (weak_fit_Ns) means that slope is mostly noise, not a reliable linear trend -- the marginal-cost-vs-N comparison should be read as directional at best, not a confident finding."
-  }
+  },
+  "liquidity_score": "par"
 }

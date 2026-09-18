@@ -3,6 +3,7 @@
     "without_liquidity_lambda": 0.0,
     "with_liquidity_lambda": 1.0
   },
+  "liquidity_score": "par",
   "sizes": [
     50,
     100,

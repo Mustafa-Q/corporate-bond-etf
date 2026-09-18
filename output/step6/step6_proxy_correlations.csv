@@ -1,4 +1,18 @@
-comparison,x,y,n,spearman_rho,p_value
-par size vs same bond par share in QLTA/LQDB (size read),Par Value,xfund_par_share,2566,0.5265,5.403734270147781e-183
-"par size vs same bond par, QLTA only",Par Value,xfund_par,1714,0.7446,8.869320931213811e-303
-"par size vs same bond par, LQDB only",Par Value,xfund_par,852,0.3328,1.7614971591897178e-23
+group,comparison,x,y,n,spearman_rho,p_value
+"headline: par holding vs TRACE activity, bonds outstanding for the full window",par size vs days traded,Par Value,days_traded,2604,0.3307,1.7357901021840667e-67
+"headline: par holding vs TRACE activity, bonds outstanding for the full window",par size vs trade count,Par Value,n_trades,2604,0.3038,1.0031520203626468e-56
+"headline: par holding vs TRACE activity, bonds outstanding for the full window",par size vs volume (capped),Par Value,total_volume_floor,2604,0.4687,2.516600924764717e-142
+sensitivity: full-window bonds with zero prints excluded,"par size vs days traded, traded bonds only",Par Value,days_traded,2593,0.3312,2.0436180355716655e-67
+sensitivity: full-window bonds with zero prints excluded,"par size vs trade count, traded bonds only",Par Value,n_trades,2593,0.304,1.4152291244084081e-56
+sensitivity: full-window bonds with zero prints excluded,"par size vs volume (capped), traded bonds only",Par Value,total_volume_floor,2593,0.4703,7.549391353936437e-143
+"naive: every matched bond, post-window new issues counted as zero activity","par size vs days traded, all matched incl. new issues at zero",Par Value,days_traded,3062,0.1954,9.824532661499766e-28
+"naive: every matched bond, post-window new issues counted as zero activity","par size vs trade count, all matched incl. new issues at zero",Par Value,n_trades,3062,0.2255,1.2955679466119844e-36
+"naive: every matched bond, post-window new issues counted as zero activity","par size vs volume (capped), all matched incl. new issues at zero",Par Value,total_volume_floor,3062,0.3281,8.722331588485225e-78
+current optimiser score vs activity,current liquidity score vs days traded,Liquidity_Score,days_traded,2604,0.3307,1.7357901021840667e-67
+current optimiser score vs activity,current liquidity score vs trade count,Liquidity_Score,n_trades,2604,0.3038,1.0031520203626468e-56
+cross-fund size vs activity,cross-fund par share vs days traded,xfund_par_share,days_traded,2142,0.2523,1.85096016327289e-32
+cross-fund size vs activity,cross-fund par share vs trade count,xfund_par_share,n_trades,2142,0.2686,1.0102348658028898e-36
+cross-fund size vs activity,cross-fund par share vs volume (capped),xfund_par_share,total_volume_floor,2142,0.4063,5.9921443320532384e-86
+size consistency (not a liquidity read),par size vs same bond par share in QLTA/LQDB,Par Value,xfund_par_share,2566,0.5265,5.403734270147781e-183
+size consistency (not a liquidity read),"par size vs same bond par, QLTA only",Par Value,xfund_par,1714,0.7446,8.869320931213811e-303
+size consistency (not a liquidity read),"par size vs same bond par, LQDB only",Par Value,xfund_par,852,0.3328,1.7614971591897178e-23

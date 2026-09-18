@@ -3,7 +3,9 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 
-# FINRA-derived data: kept out of git until the licence question is settled (see docs/superpowers/specs/)
+# FINRA/WRDS-derived data: trade-level pulls are licensed and never committed (see docs/superpowers/specs/).
+# The per-CUSIP aggregate data/trace_activity_raw.csv is a derived statistic and IS committed.
 data/trace_*
+!data/trace_activity_raw.csv
 data/finra_*
 data/raw/

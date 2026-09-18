@@ -7,24 +7,32 @@ bond's amount outstanding. A large issue can sit on a bank balance sheet and rar
 trade, so "big" and "liquid" are not the same thing. This script tests that with
 data instead of arguing about it. Run from inside scripts/ (paths are ../data, ../output).
 
-Two independent reads, so the script always produces something:
+The HEADLINE is the ACTIVITY read: Spearman rank correlation between LQD's par holding
+and real FINRA TRACE trading activity per CUSIP -- distinct days traded, trade count and
+(capped) volume -- over the window in data/trace_activity_raw.csv (WRDS TRACE Enhanced,
+cleaned by 00d_parse_wrds_trace_enhanced.py; cleaning stats in step6_trace_cleaning.json).
+The join is on cusip via data/lqd_cusip_crosswalk.csv.
 
-  A. SIZE read (always available). The same bond's par holding in QLTA or LQDB --
-     a different BlackRock fund sizing the same issue. If two funds' positions in a
-     bond are far more rank-correlated with each other than either is with trading
-     activity, the par proxy is tracking issue size. This is the stand-in for amount
-     outstanding, which no free source provides (see the design doc).
+Universe accounting (reported separately in step6_summary.json):
+  3,143 LQD bonds  ->  3,062 with a CUSIP (crosswalk)  ->  2,756 that printed at least once.
+Not every silent bond is illiquid. The holdings snapshot post-dates the TRACE window, so
+the crosswalk contains bonds that were issued AFTER the window (they could not have
+printed) and bonds issued INSIDE it (partial exposure). The iShares Effective Date sorts
+each matched bond into full_window / issued_in_window / issued_after_window, and the
+HEADLINE uses only bonds outstanding for the full window. Within that set a bond with no
+prints IS maximally illiquid and enters every correlation at zero (a tie at the bottom);
+a "traded-only" sensitivity row drops those ties, and a "naive" row shows what happens if
+the post-window new issues are wrongly counted as zero-activity bonds. Bonds with no CUSIP
+match are excluded and counted in the match report.
 
-  B. ACTIVITY read (needs TRACE data). Per-CUSIP trade count, distinct days traded,
-     and (capped) volume over a trailing window, from data/trace_activity_raw.csv plus
-     the LQD -> CUSIP crosswalk in data/lqd_cusip_crosswalk.csv. How those files are
-     obtained is a licensing decision recorded in
-     docs/superpowers/specs/2026-09-15-trace-liquidity-measure-design.md; the input
-     schema is in trace_utils.ACTIVITY_COLUMNS.
+The SIZE-CONSISTENCY check (previously mislabelled as a proxy read) is the same bond's
+position in QLTA or LQDB, a different BlackRock fund sizing the same issue. It says how
+consistently two funds size a bond; it is NOT a liquidity validation and is kept only as
+context. True amount outstanding (FISD offering_amt) is still not in the repo.
 
-Zero-trade bonds: a bond with a CUSIP but no prints in the window is NOT missing --
-it is maximally illiquid -- and enters every correlation at zero. Bonds with no CUSIP
-match are excluded from the activity correlations and counted in the match report.
+Timing caveat: TRACE Enhanced is embargoed ~6 months, so the activity window (Sep-Dec
+2025) precedes the holdings snapshot (2026-07-22). Liquidity characteristics are persistent
+over that horizon, but the two measures are not contemporaneous.
 
 Outputs (output/step6/): step6_proxy_correlations.csv, step6_match_report.csv,
 step6_bond_level.csv, step6_summary.json, charts/.
@@ -38,12 +46,16 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 from scipy.stats import spearmanr
 
-from portfolio_utils import load_bonds
+from portfolio_utils import AS_OF_DATE, load_bonds
 from trace_utils import ACTIVITY_COLUMNS
 
-DEFAULT_WINDOW = ('2026-04-22', '2026-07-22')   # trailing ~3 months ending at the holdings date
+ACTIVITY_METRICS = ['n_trades', 'n_capped_trades', 'total_volume_floor', 'days_traded',
+                    'n_customer_trades', 'n_dealer_trades', 'median_trade_size']
+HEADLINE = [('days_traded', 'days traded'), ('n_trades', 'trade count'), ('total_volume_floor', 'volume (capped)')]
 
 # --- palette, consistent with Step 4/5 charts ---
 INK, MUTED, GRID = '#2b2a26', '#898781', '#e1e0d9'
@@ -55,6 +67,13 @@ plt.rcParams.update({
     'axes.facecolor': 'white', 'axes.grid': True, 'grid.color': GRID,
     'axes.spines.top': False, 'axes.spines.right': False,
 })
+
+
+def trading_days_in_window(start, end):
+    """US bond-market trading days: weekdays minus US federal holidays (SIFMA closes the
+    bond market on Columbus Day and Veterans Day too, so the federal calendar fits)."""
+    bday = CustomBusinessDay(calendar=USFederalHolidayCalendar())
+    return int(len(pd.date_range(start, end, freq=bday)))
 
 
 def _ishares_match_key(df):
@@ -92,50 +111,67 @@ def load_cross_fund_par(bonds, data_dir):
 
 
 def load_trace(bonds, data_dir):
-    """Returns (bond-level activity frame or None, match report frame or None, note)."""
+    """Returns (bond-level activity frame, match report, (window_start, window_end), note),
+    or (None, None, None, note) when the inputs are absent. bonds needs bond_id and the
+    iShares Effective Date (issue/settlement date).
+
+    Matched bonds with no prints get zero for every metric the source provides; metrics
+    the source does not carry at all (contra-party counts on a WRDS pull) stay NaN so they
+    are skipped rather than correlated as fake zeros. window_exposure classifies each
+    matched bond by whether it existed for the whole window (see module docstring)."""
     xw_path = os.path.join(data_dir, 'lqd_cusip_crosswalk.csv')
     act_path = os.path.join(data_dir, 'trace_activity_raw.csv')
     missing = [p for p in (xw_path, act_path) if not os.path.exists(p)]
     if missing:
-        return None, None, f"TRACE inputs not present: {', '.join(os.path.basename(m) for m in missing)}"
+        return None, None, None, f"TRACE inputs not present: {', '.join(os.path.basename(m) for m in missing)}"
     xw = pd.read_csv(xw_path, dtype={'cusip': str})
     act = pd.read_csv(act_path, dtype={'cusip': str})
     missing_cols = [c for c in ACTIVITY_COLUMNS if c not in act.columns]
     if missing_cols:
         raise ValueError(f'{act_path} lacks required columns {missing_cols}; see trace_utils.ACTIVITY_COLUMNS')
+    window = (str(act['window_start'].iloc[0]), str(act['window_end'].iloc[0]))
 
     report = (xw['match_method'].value_counts().rename_axis('match_method')
               .reset_index(name='n_bonds'))
     report['share'] = report['n_bonds'] / len(bonds)
 
-    merged = bonds[['bond_id']].merge(xw, on='bond_id', how='left')
+    merged = bonds[['bond_id', 'Effective Date']].merge(xw[['bond_id', 'cusip', 'match_method']], on='bond_id', how='left')
     merged = merged.merge(act.drop(columns=['window_start', 'window_end']), on='cusip', how='left')
     has_cusip = merged['cusip'].notna()
-    metric_cols = ['n_trades', 'n_capped_trades', 'total_volume_floor', 'days_traded',
-                   'n_customer_trades', 'n_dealer_trades']
+    provided = [c for c in ACTIVITY_METRICS if act[c].notna().any()]
     # matched but silent in the window -> zero activity, deliberately kept
     merged['zero_trade_bond'] = has_cusip & merged['n_trades'].isna()
-    merged.loc[has_cusip, metric_cols] = merged.loc[has_cusip, metric_cols].fillna(0)
-    note = (f"{int(has_cusip.sum())}/{len(bonds)} bonds matched to a CUSIP; "
-            f"{int(merged['zero_trade_bond'].sum())} matched bonds had zero prints in the window "
+    merged.loc[has_cusip, provided] = merged.loc[has_cusip, provided].fillna(0)
+    eff = pd.to_datetime(merged['Effective Date'], errors='coerce')
+    ws, we = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+    exposure = pd.Series(np.where(eff > we, 'issued_after_window',
+                                  np.where(eff >= ws, 'issued_in_window', 'full_window')), index=merged.index, dtype=object)
+    merged['window_exposure'] = exposure.where(has_cusip, other=np.nan)
+    merged = merged.drop(columns=['Effective Date'])
+    full = merged['window_exposure'] == 'full_window'
+    note = (f"{int(has_cusip.sum())}/{len(bonds)} bonds matched to a CUSIP: {int(full.sum())} outstanding for the full window, "
+            f"{int((merged['window_exposure'] == 'issued_in_window').sum())} issued inside it, "
+            f"{int((merged['window_exposure'] == 'issued_after_window').sum())} issued after the window (cannot have printed); "
+            f"{int((merged['zero_trade_bond'] & full).sum())} matched bonds outstanding for the full window had zero prints "
             f"(kept at zero); {int((~has_cusip).sum())} unmatched bonds excluded from activity correlations")
-    return merged, report, note
+    return merged, report, window, note
 
 
-def spearman_table(df, pairs):
+def spearman_table(df, pairs, group=''):
     rows = []
     for x, y, label in pairs:
         sub = df[[x, y]].dropna()
         if len(sub) < 10:
-            rows.append({'comparison': label, 'x': x, 'y': y, 'n': len(sub), 'spearman_rho': np.nan, 'p_value': np.nan})
+            rows.append({'group': group, 'comparison': label, 'x': x, 'y': y, 'n': len(sub),
+                         'spearman_rho': np.nan, 'p_value': np.nan})
             continue
         rho, p = spearmanr(sub[x], sub[y])
-        rows.append({'comparison': label, 'x': x, 'y': y, 'n': int(len(sub)),
+        rows.append({'group': group, 'comparison': label, 'x': x, 'y': y, 'n': int(len(sub)),
                      'spearman_rho': round(float(rho), 4), 'p_value': float(p)})
     return pd.DataFrame(rows)
 
 
-def rank_scatter(ax, x, y, xlabel, ylabel, rho, n):
+def rank_scatter(ax, x, y, xlabel, ylabel, rho, n, n_zero=0):
     rx, ry = x.rank(pct=True), y.rank(pct=True)
     ax.scatter(rx, ry, s=14, color=POINT, alpha=0.35, edgecolor='none', zorder=2)
     ax.set_xlabel(xlabel)
@@ -143,8 +179,10 @@ def rank_scatter(ax, x, y, xlabel, ylabel, rho, n):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_axisbelow(True)
-    ax.text(0.03, 0.95, f'Spearman ρ = {rho:.2f}\nn = {n:,}', transform=ax.transAxes,
-            va='top', ha='left', fontsize=10, color=INK,
+    txt = f'Spearman ρ = {rho:.2f}\nn = {n:,}'
+    if n_zero:
+        txt += f'\n{n_zero:,} zero-trade bonds tied at the bottom'
+    ax.text(0.03, 0.95, txt, transform=ax.transAxes, va='top', ha='left', fontsize=9.5, color=INK,
             bbox=dict(boxstyle='round,pad=0.35', facecolor='white', edgecolor=GRID))
 
 
@@ -161,83 +199,156 @@ def main():
                 'Weight_Renorm', 'Liquidity_Score']].copy()
     df = df.merge(load_cross_fund_par(bonds, args.data_dir), on='bond_id')
 
-    trace, match_report, trace_note = load_trace(bonds, args.data_dir)
+    trace, match_report, window, trace_note = load_trace(bonds, args.data_dir)
     if trace is not None:
-        df = df.merge(trace.drop(columns=['bond_id']).set_index(trace['bond_id']), left_on='bond_id', right_index=True, how='left')
+        df = df.merge(trace, on='bond_id', how='left')
     print(trace_note)
 
     # ---- correlations -------------------------------------------------------------
-    pairs = [('Par Value', 'xfund_par_share', 'par size vs same bond par share in QLTA/LQDB (size read)')]
+    corr_parts = []
     if trace is not None:
-        pairs += [
-            ('Par Value', 'days_traded', 'par size vs days traded (activity)'),
-            ('Par Value', 'n_trades', 'par size vs trade count (activity)'),
-            ('Par Value', 'total_volume_floor', 'par size vs volume floor (activity)'),
-            ('Par Value', 'n_customer_trades', 'par size vs customer trade count (activity)'),
-            ('xfund_par_share', 'days_traded', 'size read vs days traded'),
-            ('xfund_par_share', 'n_trades', 'size read vs trade count'),
-            ('xfund_par_share', 'total_volume_floor', 'size read vs volume floor'),
-            ('Liquidity_Score', 'days_traded', 'current liquidity score vs days traded'),
-        ]
-    corr = spearman_table(df, pairs)
-    # the size read, fund by fund, so a QLTA-vs-LQDB scale difference can't masquerade as noise
-    per_fund = pd.concat([spearman_table(df[df['xfund_source'] == fund],
-                                         [('Par Value', 'xfund_par', f'par size vs same bond par, {fund} only')])
-                          for fund in ('QLTA', 'LQDB')], ignore_index=True)
-    corr = pd.concat([corr, per_fund], ignore_index=True)
+        matched = df[df['cusip'].notna()]
+        act = matched[matched['window_exposure'] == 'full_window']       # the headline universe
+        traded = act[~act['zero_trade_bond']]
+        headline = [('Par Value', col, f'par size vs {name}') for col, name in HEADLINE]
+        if act['n_customer_trades'].notna().any():
+            headline.append(('Par Value', 'n_customer_trades', 'par size vs customer trade count'))
+        corr_parts.append(spearman_table(act, headline, group='headline: par holding vs TRACE activity, bonds outstanding for the full window'))
+        corr_parts.append(spearman_table(traded, [('Par Value', col, f'par size vs {name}, traded bonds only')
+                                                  for col, name in HEADLINE],
+                                         group='sensitivity: full-window bonds with zero prints excluded'))
+        corr_parts.append(spearman_table(matched, [('Par Value', col, f'par size vs {name}, all matched incl. new issues at zero')
+                                                   for col, name in HEADLINE],
+                                         group='naive: every matched bond, post-window new issues counted as zero activity'))
+        corr_parts.append(spearman_table(act, [('Liquidity_Score', 'days_traded', 'current liquidity score vs days traded'),
+                                               ('Liquidity_Score', 'n_trades', 'current liquidity score vs trade count')],
+                                         group='current optimiser score vs activity'))
+        corr_parts.append(spearman_table(act, [('xfund_par_share', col, f'cross-fund par share vs {name}')
+                                               for col, name in HEADLINE],
+                                         group='cross-fund size vs activity'))
+    corr_parts.append(spearman_table(df, [('Par Value', 'xfund_par_share', 'par size vs same bond par share in QLTA/LQDB')],
+                                     group='size consistency (not a liquidity read)'))
+    # the size check fund by fund, so a QLTA-vs-LQDB scale difference can't masquerade as noise
+    corr_parts += [spearman_table(df[df['xfund_source'] == fund],
+                                  [('Par Value', 'xfund_par', f'par size vs same bond par, {fund} only')],
+                                  group='size consistency (not a liquidity read)')
+                   for fund in ('QLTA', 'LQDB')]
+    corr = pd.concat(corr_parts, ignore_index=True)
     corr.to_csv(os.path.join(args.out_dir, 'step6_proxy_correlations.csv'), index=False)
     print(corr.to_string(index=False))
 
-    # ---- headline numbers & verdict -----------------------------------------------
-    def rho_of(label_prefix):
-        r = corr[corr['comparison'].str.startswith(label_prefix)]
+    def rho_of(label, group_prefix=''):
+        r = corr[(corr['comparison'] == label) & corr['group'].str.startswith(group_prefix)]
         return None if r.empty or pd.isna(r['spearman_rho'].iloc[0]) else float(r['spearman_rho'].iloc[0])
 
+    # ---- summary & verdict --------------------------------------------------------
+    size_rho = rho_of('par size vs same bond par share in QLTA/LQDB')
     summary = {
-        'window': {'start': DEFAULT_WINDOW[0], 'end': DEFAULT_WINDOW[1]},
-        'n_bonds_lqd': int(len(df)),
-        'n_bonds_with_cross_fund_par': int(df['xfund_par'].notna().sum()),
-        'rho_par_vs_size_read': rho_of('par size vs same bond par share'),
-        'rho_par_vs_size_read_qlta_only': rho_of('par size vs same bond par, QLTA'),
-        'rho_par_vs_size_read_lqdb_only': rho_of('par size vs same bond par, LQDB'),
+        'holdings_as_of': AS_OF_DATE.strftime('%Y-%m-%d'),
         'trace_status': 'available' if trace is not None else 'missing',
         'trace_note': trace_note,
     }
     if trace is not None:
-        act = df[df['cusip'].notna()]
-        est_trading_days = int(act['days_traded'].max()) if len(act) else 0
+        n_days = trading_days_in_window(*window)
         top_decile = act[act['Par Value'] >= act['Par Value'].quantile(0.9)]
-        parked = top_decile['days_traded'] < 0.5 * est_trading_days
-        rho_days, rho_trades, rho_vol = rho_of('par size vs days'), rho_of('par size vs trade count'), rho_of('par size vs volume')
-        best_activity = max(v for v in (rho_days, rho_trades, rho_vol) if v is not None)
-        size_rho = summary['rho_par_vs_size_read']
+        bottom_decile = act[act['Par Value'] <= act['Par Value'].quantile(0.1)]
+        parked = top_decile['days_traded'] < 0.5 * n_days
+        rho_days, rho_trades, rho_vol = (rho_of(f'par size vs {name}', 'headline') for _, name in HEADLINE)
+        # verdict keyed to the primary measures (days traded, trade count: robust to the volume
+        # artefacts); volume is reported alongside as the secondary measure
+        primary = max(v for v in (rho_days, rho_trades) if v is not None)
+        exposure_counts = matched['window_exposure'].value_counts().to_dict()
         summary.update({
-            'trading_days_in_window_est': est_trading_days,
-            'n_bonds_matched_cusip': int(len(act)),
-            'n_zero_trade_bonds': int(act['zero_trade_bond'].sum()),
-            'n_unmatched_bonds': int(df['cusip'].isna().sum()),
-            'rho_par_vs_days_traded': rho_days,
-            'rho_par_vs_n_trades': rho_trades,
-            'rho_par_vs_volume_floor': rho_vol,
-            'rho_size_read_vs_days_traded': rho_of('size read vs days'),
-            'top_par_decile_share_trading_under_half_of_days': round(float(parked.mean()), 4) if len(top_decile) else None,
-            'median_days_traded_top_par_decile': float(top_decile['days_traded'].median()) if len(top_decile) else None,
-            'median_days_traded_bottom_par_decile': float(act[act['Par Value'] <= act['Par Value'].quantile(0.1)]['days_traded'].median()) if len(act) else None,
+            'activity_window': {'start': window[0], 'end': window[1], 'trading_days': n_days,
+                                'source': 'WRDS TRACE Enhanced; cleaning in step6_trace_cleaning.json'},
+            'universe': {
+                'n_bonds_lqd': int(len(df)),
+                'n_bonds_with_cusip': int(len(matched)),
+                'n_bonds_traded_in_window': int((~matched['zero_trade_bond']).sum()),
+                'n_matched_zero_prints_any_reason': int(matched['zero_trade_bond'].sum()),
+                'n_unmatched_bonds': int(df['cusip'].isna().sum()),
+                'by_window_exposure': {k: int(exposure_counts.get(k, 0)) for k in
+                                       ('full_window', 'issued_in_window', 'issued_after_window')},
+                'headline_universe': 'full_window',
+                'n_headline': int(len(act)),
+                'n_headline_zero_trade': int(act['zero_trade_bond'].sum()),
+                'note': ('A matched bond with no prints is only "maximally illiquid" if it existed for the '
+                         'whole window; bonds issued after the window are excluded from the headline, '
+                         'bonds issued inside it had partial exposure and are excluded too.'),
+            },
+            'headline': {
+                'rho_par_vs_days_traded': rho_days,
+                'rho_par_vs_n_trades': rho_trades,
+                'rho_par_vs_volume_capped': rho_vol,
+                'n': int(len(act)),
+                'note': ('Spearman over CUSIP-matched bonds outstanding for the full window; the zero-print '
+                         'bonds among them enter at zero (tied at the bottom)'),
+            },
+            'sensitivity_traded_only': {
+                'rho_par_vs_days_traded': rho_of('par size vs days traded, traded bonds only'),
+                'rho_par_vs_n_trades': rho_of('par size vs trade count, traded bonds only'),
+                'rho_par_vs_volume_capped': rho_of('par size vs volume (capped), traded bonds only'),
+                'n': int(len(traded)),
+            },
+            'sensitivity_naive_all_matched': {
+                'rho_par_vs_days_traded': rho_of('par size vs days traded, all matched incl. new issues at zero'),
+                'rho_par_vs_n_trades': rho_of('par size vs trade count, all matched incl. new issues at zero'),
+                'rho_par_vs_volume_capped': rho_of('par size vs volume (capped), all matched incl. new issues at zero'),
+                'n': int(len(matched)),
+                'note': 'what the headline would read if post-window new issues were wrongly treated as zero-activity bonds',
+            },
+            'current_liquidity_score': {
+                'rho_vs_days_traded': rho_of('current liquidity score vs days traded'),
+                'rho_vs_n_trades': rho_of('current liquidity score vs trade count'),
+            },
+            'parked_issue_check': {
+                'top_par_decile_share_trading_under_half_of_days': round(float(parked.mean()), 4),
+                'median_days_traded_top_par_decile': float(top_decile['days_traded'].median()),
+                'median_days_traded_bottom_par_decile': float(bottom_decile['days_traded'].median()),
+                'median_trades_top_par_decile': float(top_decile['n_trades'].median()),
+                'median_trades_bottom_par_decile': float(bottom_decile['n_trades'].median()),
+            },
         })
-        if size_rho is not None and size_rho - best_activity > 0.15:
-            verdict = (f'Par size tracks issue size (ρ={size_rho:.2f} vs another fund\'s position in the same bond) '
-                       f'much more closely than trading activity (best ρ={best_activity:.2f}). '
-                       'The reviewer\'s critique holds: the proxy measures size, not tradability.')
-        elif best_activity >= 0.6:
-            verdict = (f'Par size is a reasonable activity proxy in this universe (best activity ρ={best_activity:.2f}); '
-                       'the critique is weaker than expected here.')
+    summary['size_consistency_check'] = {
+        'rho_par_vs_cross_fund_par_share': size_rho,
+        'rho_qlta_only': rho_of('par size vs same bond par, QLTA only'),
+        'rho_lqdb_only': rho_of('par size vs same bond par, LQDB only'),
+        'n': int(df['xfund_par'].notna().sum()),
+        'note': ('LQD par vs the same bond\'s par share in QLTA/LQDB. A size-vs-size cross-fund '
+                 'consistency check, NOT a liquidity or tradability read.'),
+    }
+    summary['amount_outstanding'] = ('not available: FISD/Mergent offering_amt has not been pulled; the N-PORT '
+                                     'balance is the ETF holding, not issuance. The TRACE activity read is the '
+                                     'stronger test of the critique and stands on its own.')
+    summary['limitations'] = [
+        f'Activity window ends {window[1] if window else "n/a"}, ~7 months before the {summary["holdings_as_of"]} '
+        'holdings snapshot (TRACE Enhanced embargo); liquidity is persistent over that horizon but the '
+        'measures are not contemporaneous, and bonds issued after the window drop out of the headline.',
+        'Cleaning: trc_st T kept; X cancels and R reversals remove one attribute-matched original each; '
+        'C corrections and Y dropped with the original T kept (no msg_seq_nb in the pull). Volume winsorised '
+        'per print at $100MM. See step6_trace_cleaning.json.',
+        'days_traded saturates: most matched bonds print on nearly every trading day, so trade count '
+        'discriminates better at the liquid end.',
+        'No contra-party field in the WRDS pull, so customer vs dealer counts are unavailable.',
+    ]
+    if trace is not None:
+        if primary < 0.3:
+            strength, reading = 'weak', 'the reviewer\'s critique holds: par holding size measures issue size, not tradability'
+        elif primary < 0.6:
+            strength, reading = 'moderate', ('the reviewer\'s critique holds in substance: par holding size is a partial, '
+                                             'noisy read of tradability')
         else:
-            verdict = (f'Par size correlates only moderately with both size (ρ={size_rho}) and activity '
-                       f'(best ρ={best_activity:.2f}); it is a noisy proxy for either.')
+            strength, reading = 'strong', 'par holding size is a reasonable activity proxy in this universe; the critique is weaker than expected'
+        verdict = (f'Par holding size vs TRACE trading activity: Spearman ρ = {rho_days:.2f} (days traded), '
+                   f'{rho_trades:.2f} (trade count) over {len(act):,} CUSIP-matched bonds outstanding for the full window '
+                   f'({int(act["zero_trade_bond"].sum())} with zero prints, kept at zero); capped volume ρ = {rho_vol:.2f}. '
+                   f'The association is {strength}, so {reading}. '
+                   f'Among the top par decile, {parked.mean():.0%} of bonds traded on fewer than half of the {n_days} trading days. '
+                   f'For context, LQD par agrees with another fund\'s sizing of the same bond at ρ = {size_rho:.2f} '
+                   '(size consistency, not a liquidity read).')
     else:
-        verdict = ('TRACE activity data not yet available; only the size read was computed. '
-                   'Par size vs the same bond\'s par in QLTA/LQDB: '
-                   f"ρ={summary['rho_par_vs_size_read']} over {summary['n_bonds_with_cross_fund_par']} bonds.")
+        verdict = ('TRACE activity data not present; only the size-consistency check was computed '
+                   f'(ρ={size_rho}), which is not a liquidity validation.')
     summary['verdict'] = verdict
     with open(os.path.join(args.out_dir, 'step6_summary.json'), 'w') as f:
         json.dump(summary, f, indent=2)
@@ -252,39 +363,37 @@ def main():
     sub = df.dropna(subset=['xfund_par_share'])
     fig, ax = plt.subplots(figsize=(6, 5.2))
     rank_scatter(ax, sub['Par Value'], sub['xfund_par_share'], 'LQD par holding (percentile rank)',
-                 'Same bond, share of QLTA/LQDB par (percentile rank)',
-                 summary['rho_par_vs_size_read'] or float('nan'), len(sub))
-    ax.set_title('Size read: two funds\' positions in the same bond', fontsize=11)
+                 'Same bond, share of QLTA/LQDB par (percentile rank)', size_rho or float('nan'), len(sub))
+    ax.set_title('Size-consistency check: two funds\' positions in the same bond', fontsize=11)
     fig.savefig(os.path.join(charts, 'chart0_par_vs_cross_fund_par.png'), dpi=150, bbox_inches='tight')
     plt.close(fig)
 
     if trace is not None:
-        act = df[df['cusip'].notna()]
+        n_zero = int(act['zero_trade_bond'].sum())
         fig, axes = plt.subplots(1, 3, figsize=(15, 4.8))
         for ax, (col, label, key) in zip(axes, [
                 ('days_traded', 'Days traded in window (percentile rank)', 'rho_par_vs_days_traded'),
                 ('n_trades', 'Trade count in window (percentile rank)', 'rho_par_vs_n_trades'),
-                ('total_volume_floor', 'Volume floor in window (percentile rank)', 'rho_par_vs_volume_floor')]):
+                ('total_volume_floor', 'Volume in window, capped (percentile rank)', 'rho_par_vs_volume_capped')]):
             rank_scatter(ax, act['Par Value'], act[col], 'LQD par holding (percentile rank)', label,
-                         summary[key] or float('nan'), len(act))
-        fig.suptitle('Activity read: par holding size vs TRACE trading activity '
-                     f"({summary['window']['start']} to {summary['window']['end']})", fontsize=12)
+                         summary['headline'][key] or float('nan'), len(act), n_zero)
+        fig.suptitle('Headline: par holding size vs TRACE trading activity, bonds outstanding for the full window '
+                     f'({window[0]} to {window[1]}, {n_days} trading days)', fontsize=12)
         fig.savefig(os.path.join(charts, 'chart1_par_vs_trace_activity.png'), dpi=150, bbox_inches='tight')
         plt.close(fig)
 
-        # size-vs-activity side by side: the reviewer's comparison in one picture
+        # activity vs size side by side: the reviewer's comparison in one picture
         fig, ax = plt.subplots(figsize=(7, 4.2))
-        labels = ['Same bond in\nQLTA/LQDB (size)', 'Days traded', 'Trade count', 'Volume floor']
-        vals = [summary['rho_par_vs_size_read'], summary['rho_par_vs_days_traded'],
-                summary['rho_par_vs_n_trades'], summary['rho_par_vs_volume_floor']]
-        colors = [ACCENT] + [POINT] * 3
+        labels = ['Days traded', 'Trade count', 'Volume (capped)', 'Same bond in\nQLTA/LQDB (size)']
+        vals = [rho_days, rho_trades, rho_vol, size_rho]
+        colors = [POINT] * 3 + [ACCENT]
         bars = ax.barh(labels[::-1], [v or 0 for v in vals][::-1], color=colors[::-1], height=0.55)
         for b, v in zip(bars, [v or 0 for v in vals][::-1]):
             ax.text(b.get_width() + 0.01, b.get_y() + b.get_height() / 2, f'{v:.2f}', va='center', fontsize=9.5)
         ax.set_xlim(0, 1)
         ax.tick_params(axis='y', colors=INK)
         ax.set_xlabel('Spearman ρ with LQD par holding size')
-        ax.set_title('What does par holding size actually track?', fontsize=11)
+        ax.set_title('What does par holding size actually track? (TRACE activity vs a size check)', fontsize=11)
         ax.grid(axis='y', visible=False)
         fig.savefig(os.path.join(charts, 'chart2_size_vs_activity_rho.png'), dpi=150, bbox_inches='tight')
         plt.close(fig)

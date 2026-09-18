@@ -1,0 +1,135 @@
+N,dimension,lambda,liquidity_score,mismatch_value
+50,Sector L1 mismatch (pp),0.4,0.7435,10.162
+50,Sector L1 mismatch (pp),1.5,0.7476,13.949
+50,Sector L1 mismatch (pp),2.0,0.748,14.34
+50,Rating L1 mismatch (pp),0.005,0.7379,0.005
+50,Rating L1 mismatch (pp),0.02,0.7392,0.02
+50,Rating L1 mismatch (pp),0.01,0.7394,0.022
+50,Rating L1 mismatch (pp),0.04,0.741,0.053
+50,Rating L1 mismatch (pp),0.05,0.7448,0.083
+50,Rating L1 mismatch (pp),0.5,0.7451,0.376
+50,Rating L1 mismatch (pp),2.0,0.748,1.04
+50,Maturity L1 mismatch (pp),0.02,0.7392,0.15
+50,Maturity L1 mismatch (pp),0.175,0.7429,0.485
+50,Maturity L1 mismatch (pp),1.0,0.7451,2.003
+50,Maturity L1 mismatch (pp),1.5,0.7476,4.037
+50,Maturity L1 mismatch (pp),2.0,0.748,4.973
+50,Duration abs. diff (yrs),0.005,0.7379,0.004
+50,Duration abs. diff (yrs),0.05,0.7448,0.034
+50,Duration abs. diff (yrs),0.5,0.7451,0.171
+50,Duration abs. diff (yrs),1.5,0.7476,0.346
+50,Duration abs. diff (yrs),2.0,0.748,0.348
+50,YTM abs. diff (pp),0.0075,0.7436,0.0001
+50,YTM abs. diff (pp),0.05,0.7448,0.0284
+50,YTM abs. diff (pp),1.5,0.7476,0.0497
+50,YTM abs. diff (pp),2.0,0.748,0.0509
+50,Top-10 issuer weight (%),2.0,0.748,30.0
+50,Issuer HHI,0.03,0.7391,260.2
+50,Issuer HHI,0.2,0.7412,261.2
+50,Issuer HHI,0.175,0.7429,263.6
+50,Issuer HHI,0.4,0.7435,265.4
+50,Issuer HHI,1.5,0.7476,267.0
+50,Issuer HHI,2.0,0.748,268.7
+100,Sector L1 mismatch (pp),0.0,0.6845,1.226
+100,Sector L1 mismatch (pp),0.0075,0.7601,2.126
+100,Sector L1 mismatch (pp),0.175,0.7622,2.649
+100,Sector L1 mismatch (pp),0.06,0.7626,2.824
+100,Sector L1 mismatch (pp),0.3,0.7669,2.833
+100,Sector L1 mismatch (pp),0.75,0.7709,7.961
+100,Rating L1 mismatch (pp),0.0,0.6845,0.0
+100,Rating L1 mismatch (pp),0.0025,0.7639,0.001
+100,Rating L1 mismatch (pp),0.005,0.764,0.003
+100,Rating L1 mismatch (pp),0.3,0.7669,0.261
+100,Rating L1 mismatch (pp),1.0,0.7685,0.517
+100,Rating L1 mismatch (pp),0.75,0.7709,0.695
+100,Maturity L1 mismatch (pp),0.005,0.764,0.1
+100,Maturity L1 mismatch (pp),0.3,0.7669,0.716
+100,Maturity L1 mismatch (pp),0.75,0.7709,1.515
+100,Duration abs. diff (yrs),0.0,0.6845,0.0
+100,Duration abs. diff (yrs),0.0025,0.7639,0.002
+100,Duration abs. diff (yrs),0.005,0.764,0.004
+100,Duration abs. diff (yrs),0.3,0.7669,0.043
+100,Duration abs. diff (yrs),0.75,0.7709,0.053
+100,YTM abs. diff (pp),0.0,0.6845,0.0
+100,YTM abs. diff (pp),0.0025,0.7639,0.0009
+100,YTM abs. diff (pp),0.005,0.764,0.0015
+100,YTM abs. diff (pp),1.0,0.7685,0.0018
+100,YTM abs. diff (pp),1.5,0.7705,0.0046
+100,YTM abs. diff (pp),0.75,0.7709,0.0069
+100,Top-10 issuer weight (%),0.0,0.6845,26.36
+100,Top-10 issuer weight (%),0.75,0.7709,30.0
+100,Issuer HHI,0.0,0.6845,180.2
+100,Issuer HHI,0.0075,0.7601,234.7
+100,Issuer HHI,0.025,0.7612,238.5
+100,Issuer HHI,0.04,0.7622,239.0
+100,Issuer HHI,0.05,0.7624,239.3
+100,Issuer HHI,0.06,0.7626,239.4
+100,Issuer HHI,0.1,0.7629,239.5
+100,Issuer HHI,0.125,0.7631,239.7
+100,Issuer HHI,0.25,0.764,240.6
+100,Issuer HHI,1.0,0.7685,245.0
+100,Issuer HHI,0.75,0.7709,258.9
+200,Sector L1 mismatch (pp),0.0,0.6581,0.669
+200,Sector L1 mismatch (pp),0.0025,0.7754,1.226
+200,Sector L1 mismatch (pp),0.075,0.7763,1.512
+200,Sector L1 mismatch (pp),0.125,0.778,1.998
+200,Sector L1 mismatch (pp),0.175,0.7781,2.498
+200,Sector L1 mismatch (pp),0.25,0.7784,3.321
+200,Sector L1 mismatch (pp),0.4,0.7808,3.447
+200,Sector L1 mismatch (pp),0.5,0.7815,3.889
+200,Sector L1 mismatch (pp),0.75,0.7825,5.102
+200,Sector L1 mismatch (pp),1.0,0.7837,5.856
+200,Sector L1 mismatch (pp),1.5,0.786,8.052
+200,Sector L1 mismatch (pp),2.0,0.7876,9.283
+200,Rating L1 mismatch (pp),0.0,0.6581,0.0
+200,Rating L1 mismatch (pp),0.0025,0.7754,0.004
+200,Rating L1 mismatch (pp),0.075,0.7763,0.094
+200,Rating L1 mismatch (pp),0.125,0.778,0.182
+200,Rating L1 mismatch (pp),0.175,0.7781,0.252
+200,Rating L1 mismatch (pp),0.15,0.779,0.326
+200,Rating L1 mismatch (pp),0.3,0.7796,0.673
+200,Rating L1 mismatch (pp),0.4,0.7808,0.725
+200,Rating L1 mismatch (pp),0.5,0.7815,0.915
+200,Rating L1 mismatch (pp),0.75,0.7825,1.261
+200,Rating L1 mismatch (pp),1.0,0.7837,1.73
+200,Rating L1 mismatch (pp),1.5,0.786,2.59
+200,Rating L1 mismatch (pp),2.0,0.7876,3.439
+200,Maturity L1 mismatch (pp),0.0025,0.7754,0.1
+200,Maturity L1 mismatch (pp),0.075,0.7763,0.162
+200,Maturity L1 mismatch (pp),0.3,0.7796,0.312
+200,Maturity L1 mismatch (pp),0.4,0.7808,0.786
+200,Maturity L1 mismatch (pp),0.5,0.7815,1.017
+200,Maturity L1 mismatch (pp),0.75,0.7825,1.803
+200,Maturity L1 mismatch (pp),1.0,0.7837,2.233
+200,Maturity L1 mismatch (pp),1.5,0.786,2.582
+200,Maturity L1 mismatch (pp),2.0,0.7876,3.269
+200,Duration abs. diff (yrs),0.0,0.6581,0.0
+200,Duration abs. diff (yrs),0.0025,0.7754,0.001
+200,Duration abs. diff (yrs),0.075,0.7763,0.028
+200,Duration abs. diff (yrs),0.125,0.778,0.062
+200,Duration abs. diff (yrs),0.15,0.779,0.071
+200,Duration abs. diff (yrs),0.3,0.7796,0.072
+200,Duration abs. diff (yrs),0.4,0.7808,0.118
+200,Duration abs. diff (yrs),0.5,0.7815,0.129
+200,Duration abs. diff (yrs),0.75,0.7825,0.178
+200,Duration abs. diff (yrs),1.0,0.7837,0.2
+200,Duration abs. diff (yrs),1.5,0.786,0.237
+200,Duration abs. diff (yrs),2.0,0.7876,0.256
+200,YTM abs. diff (pp),0.0,0.6581,0.0
+200,YTM abs. diff (pp),0.0025,0.7754,0.0009
+200,YTM abs. diff (pp),0.3,0.7796,0.003
+200,YTM abs. diff (pp),1.0,0.7837,0.0351
+200,YTM abs. diff (pp),2.0,0.7876,0.0409
+200,Top-10 issuer weight (%),0.0,0.6581,16.78
+200,Top-10 issuer weight (%),0.0075,0.7686,29.37
+200,Top-10 issuer weight (%),0.1,0.7749,29.6
+200,Top-10 issuer weight (%),2.0,0.7876,30.0
+200,Issuer HHI,0.0,0.6581,102.4
+200,Issuer HHI,0.0075,0.7686,201.6
+200,Issuer HHI,0.175,0.7781,202.5
+200,Issuer HHI,0.25,0.7784,206.0
+200,Issuer HHI,0.5,0.7815,208.0
+200,Issuer HHI,0.75,0.7825,211.7
+200,Issuer HHI,1.0,0.7837,212.9
+200,Issuer HHI,1.5,0.786,213.5
+200,Issuer HHI,2.0,0.7876,216.4

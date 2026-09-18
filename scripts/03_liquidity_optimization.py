@@ -8,15 +8,21 @@ Extends the Step 2 optimization-based sampler with a soft liquidity penalty:
 lambda_liq is swept across a grid so we can trace out the accuracy/liquidity
 trade-off frontier in Step 5. lambda_liq = 0 reproduces the Step 2 optimizer.
 
-Liquidity score = normalized log(Par Value) - see portfolio_utils.load_bonds
-for the caveat on what this proxy does and doesn't capture.
+Liquidity score: --score par (default) is normalized log(Par Value), the historical
+proxy -- see portfolio_utils.load_bonds for the caveat on what it does and doesn't
+capture, and Step 6 for how weakly it tracks real trading activity. --score trace is the
+TRACE-activity score (portfolio_utils.build_trace_liquidity_score); its outputs land in
+the parallel output/liquidity_trace/ + output/step3_liquidity_sweep_trace.csv so both
+frontiers coexist (Step 7 compares them). Run from the repo root.
 """
+import argparse
 import numpy as np
 import pandas as pd
 import cvxpy as cp
 import os
 
-from portfolio_utils import load_bonds, compute_benchmark_targets, evaluate_portfolio, sector_dummies, maturity_dummies, rating_dummies
+from portfolio_utils import (SCORES, load_bonds, compute_benchmark_targets, evaluate_portfolio, output_paths,
+                             sector_dummies, maturity_dummies, rating_dummies)
 
 MAX_ISSUER_WEIGHT = 0.03
 # Densified vs. the original 8-point grid (documented "noisy sweep" limitation). The "noise" is
@@ -31,8 +37,6 @@ MAX_ISSUER_WEIGHT = 0.03
 LAMBDA_GRID = [0.0, 0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06,
                0.075, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0]
 SIZES_FOR_SWEEP = [50, 100, 200]  # N=25 excluded: liquidity optimizer infeasible there (see README)
-
-os.makedirs('output/liquidity', exist_ok=True)
 
 
 def method_stratified(bonds, targets, n):
@@ -164,8 +168,10 @@ def method_optimization_liquidity(bonds, targets, n, lambda_liq, candidate_multi
     return w / w.sum()
 
 
-def run_sweep():
-    bonds = load_bonds()
+def run_sweep(score='par'):
+    paths = output_paths(score)
+    os.makedirs(paths['weights_dir'], exist_ok=True)
+    bonds = load_bonds(score=score)
     targets = compute_benchmark_targets(bonds)
 
     rows = []
@@ -178,10 +184,13 @@ def run_sweep():
             metrics['lambda_liq'] = lam
             rows.append(metrics)
 
-            out = bonds[['bond_id', 'Name', 'Sector', 'Maturity_Bucket', 'Par Value', 'Liquidity_Score', 'Weight_Renorm']].copy()
+            cols = ['bond_id', 'Name', 'Sector', 'Maturity_Bucket', 'Par Value', 'Liquidity_Score', 'Weight_Renorm']
+            if score == 'trace':
+                cols += ['Liquidity_Score_Par', 'Liquidity_Score_Source']
+            out = bonds[cols].copy()
             out['Sampled_Weight'] = w
             out = out[out['Sampled_Weight'] > 1e-10].sort_values('Sampled_Weight', ascending=False)
-            out.to_csv(f'output/liquidity/optimization_liquidity_N{n}_lambda{lam}.csv', index=False)
+            out.to_csv(f"{paths['weights_dir']}/optimization_liquidity_N{n}_lambda{lam}.csv", index=False)
 
     summary = pd.json_normalize(rows)
     cols = ['target_n', 'lambda_liq', 'n_holdings', 'weighted_avg_liquidity_score',
@@ -189,10 +198,13 @@ def run_sweep():
             'duration_abs_diff', 'ytm', 'ytm_abs_diff_pct', 'top10_issuer_weight_pct',
             'max_issuer_weight_pct', 'issuer_hhi']
     summary = summary[cols + [c for c in summary.columns if c not in cols]]
-    summary.to_csv('output/step3_liquidity_sweep.csv', index=False)
-    print("\nSaved output/step3_liquidity_sweep.csv")
+    summary.to_csv(paths['sweep_csv'], index=False)
+    print(f"\nSaved {paths['sweep_csv']}")
     print(summary[cols].round(4).to_string(index=False))
 
 
 if __name__ == '__main__':
-    run_sweep()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--score', choices=SCORES, default='par', help='liquidity score to optimise on (default: par)')
+    args = ap.parse_args()
+    run_sweep(score=args.score)
