@@ -8,6 +8,6 @@ __pycache__/
 data/trace_*
 !data/trace_activity_raw.csv
 data/finra_*
-# per-bond Mergent FISD issue sizes are a licensed field, not a derived statistic
-data/fisd_*
+# data/fisd_amount_outstanding.csv (WRDS Mergent FISD pull, 3,004 rows) and the parsed
+# data/fisd_issue_size.csv are committed at the user's instruction (2026-09-17).
 data/raw/

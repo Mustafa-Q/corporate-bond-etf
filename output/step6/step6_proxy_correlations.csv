@@ -13,6 +13,11 @@ current optimiser score vs activity,current liquidity score vs trade count,Liqui
 cross-fund size vs activity,cross-fund par share vs days traded,xfund_par_share,days_traded,2142,0.2523,1.85096016327289e-32
 cross-fund size vs activity,cross-fund par share vs trade count,xfund_par_share,n_trades,2142,0.2686,1.0102348658028898e-36
 cross-fund size vs activity,cross-fund par share vs volume (capped),xfund_par_share,total_volume_floor,2142,0.4063,5.9921443320532384e-86
+issue size (FISD): the direct size read,par size vs FISD issue size,Par Value,issue_size,3004,0.8523,0.0
+issue size (FISD): the direct size read,par size vs FISD offering amount,Par Value,offering_amt,3004,0.8022,0.0
+"issue size vs activity, bonds outstanding for the full window",FISD issue size vs days traded,issue_size,days_traded,2567,0.3421,2.2111235239912062e-71
+"issue size vs activity, bonds outstanding for the full window",FISD issue size vs trade count,issue_size,n_trades,2567,0.3269,5.654348353750458e-65
+"issue size vs activity, bonds outstanding for the full window",FISD issue size vs volume (capped),issue_size,total_volume_floor,2567,0.4912,5.515032188076609e-156
 size consistency (not a liquidity read),par size vs same bond par share in QLTA/LQDB,Par Value,xfund_par_share,2566,0.5265,5.403734270147781e-183
 size consistency (not a liquidity read),"par size vs same bond par, QLTA only",Par Value,xfund_par,1714,0.7446,8.869320931213811e-303
 size consistency (not a liquidity read),"par size vs same bond par, LQDB only",Par Value,xfund_par,852,0.3328,1.7614971591897178e-23
