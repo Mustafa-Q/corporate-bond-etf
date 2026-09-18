@@ -187,7 +187,7 @@ def main():
     axes[0].legend(handles, labels, loc='lower right', frameon=False, fontsize=8.5)
     fig.suptitle('What each liquidity tilt buys in real trading activity, and what it costs in sector fidelity\n'
                  '(faint dots = full λ grid; squares/diamonds = the λ = 0 and λ = 1 books compared in Step 4)',
-                 fontsize=12)
+                 fontsize=12, y=1.06)
     fig.savefig(os.path.join(charts, 'chart1_frontier_par_vs_trace.png'), dpi=150, bbox_inches='tight')
     plt.close(fig)
 

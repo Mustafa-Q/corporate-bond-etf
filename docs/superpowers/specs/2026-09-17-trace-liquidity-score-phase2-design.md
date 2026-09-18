@@ -99,3 +99,30 @@ available tradability"; otherwise "mixed", reported per N.
 
 Changing the optimiser, the λ grid, N=25, or the rating proxy. Pulling amount outstanding.
 Any re-run of Step 2 (no liquidity term there).
+
+## 7. Result (2026-09-17)
+
+Score construction on the real universe: 2,604 `trace_full_window`, 139 `trace_scaled`,
+392 `imputed_sector_maturity`, 4 `imputed_sector`, 4 `imputed_universe`; imputed bonds carry
+15.9% of benchmark weight. Spearman rank correlation between the par and TRACE scores across
+the 3,143 bonds: 0.28. Scaled bonds have a median raw count ~3× the full-window median (new
+issues trade heavily in their first weeks), a known upward bias for those 139 bonds.
+
+Cross-evaluation at λ = 0 → λ = 1 (`output/step7/step7_headline.csv`):
+
+| N | book | TRACE-score gain | par-score gain | sector L1 cost (pp) | top-10 issuer cost (pp) | imputed weight at λ=1 |
+|---|---|---|---|---|---|---|
+| 50 | par-optimised | +0.028 | +0.037 | +2.6 | 0.0 | 22% |
+| 50 | TRACE-optimised | +0.076 | +0.022 | +0.8 | 0.0 | 16% |
+| 100 | par-optimised | +0.003 | +0.067 | +7.2 | +3.6 | 24% |
+| 100 | TRACE-optimised | +0.084 | +0.033 | +9.7 | +3.6 | 8% |
+| 200 | par-optimised | +0.034 | +0.078 | +5.6 | +13.2 | 28% |
+| 200 | TRACE-optimised | +0.126 | +0.030 | +5.2 | +13.2 | 5% |
+
+Verdict under the §4 rule: **bought size, not tradability** — the TRACE tilt's activity gain
+exceeds the par tilt's by far more than 50% at every N, at a comparable cost. Caveat: the par
+tilt concentrates in large new issues whose TRACE score is an imputed peer median, so part of
+its flat activity reading is the imputation being neutral; that is itself a statement about
+what the par proxy rewards.
+
+Runtime: the TRACE sweep takes ~45 s; Steps 4–5 and 7 a few seconds each.
