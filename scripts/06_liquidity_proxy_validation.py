@@ -28,7 +28,13 @@ match are excluded and counted in the match report.
 The SIZE-CONSISTENCY check (previously mislabelled as a proxy read) is the same bond's
 position in QLTA or LQDB, a different BlackRock fund sizing the same issue. It says how
 consistently two funds size a bond; it is NOT a liquidity validation and is kept only as
-context. True amount outstanding (FISD offering_amt) is still not in the repo.
+context.
+
+The ISSUE-SIZE read (needs data/fisd_issue_size.csv from 00e_parse_fisd_issue_size.py) is the
+direct test of "par holding ~ amount outstanding": Spearman of par vs true issue size (FISD
+amount outstanding, else offering amount), and of issue size vs TRACE activity, so the three
+quantities -- par, size, tradability -- can be read against each other. Skipped with a note
+when the file is absent.
 
 Timing caveat: TRACE Enhanced is embargoed ~6 months, so the activity window (Sep-Dec
 2025) precedes the holdings snapshot (2026-07-22). Liquidity characteristics are persistent
@@ -157,6 +163,22 @@ def load_trace(bonds, data_dir):
     return merged, report, window, note
 
 
+def load_issue_size(bonds, data_dir):
+    """FISD issue size per bond, or None when data/fisd_issue_size.csv is absent. issue_size is
+    amount outstanding when FISD has it (issue_size_basis='amount_outstanding'), else the
+    offering amount. Bonds with no FISD row stay NaN (missing, not zero)."""
+    path = os.path.join(data_dir, 'fisd_issue_size.csv')
+    if not os.path.exists(path):
+        return None
+    f = pd.read_csv(path, dtype={'cusip': str})
+    f['issue_size'] = f['amount_outstanding'].where(f['amount_outstanding'].notna(), f['offering_amt'])
+    f['issue_size_basis'] = np.where(f['amount_outstanding'].notna(), 'amount_outstanding',
+                                     np.where(f['offering_amt'].notna(), 'offering_amt', None))
+    out = bonds[['bond_id']].merge(f[['bond_id', 'offering_amt', 'amount_outstanding', 'issue_size', 'issue_size_basis']],
+                                   on='bond_id', how='left')
+    return out
+
+
 def spearman_table(df, pairs, group=''):
     rows = []
     for x, y, label in pairs:
@@ -203,6 +225,13 @@ def main():
     if trace is not None:
         df = df.merge(trace, on='bond_id', how='left')
     print(trace_note)
+    fisd = load_issue_size(bonds, args.data_dir)
+    if fisd is not None:
+        df = df.merge(fisd, on='bond_id', how='left')
+        print(f"FISD issue size for {int(df['issue_size'].notna().sum())}/{len(df)} bonds "
+              f"({int((df['issue_size_basis'] == 'amount_outstanding').sum())} with amount outstanding)")
+    else:
+        print('FISD issue size not present (data/fisd_issue_size.csv); issue-size read skipped')
 
     # ---- correlations -------------------------------------------------------------
     corr_parts = []
@@ -226,6 +255,13 @@ def main():
         corr_parts.append(spearman_table(act, [('xfund_par_share', col, f'cross-fund par share vs {name}')
                                                for col, name in HEADLINE],
                                          group='cross-fund size vs activity'))
+    if fisd is not None:
+        corr_parts.append(spearman_table(df, [('Par Value', 'issue_size', 'par size vs FISD issue size'),
+                                              ('Par Value', 'offering_amt', 'par size vs FISD offering amount')],
+                                         group='issue size (FISD): the direct size read'))
+        if trace is not None:
+            corr_parts.append(spearman_table(act, [('issue_size', col, f'FISD issue size vs {name}') for col, name in HEADLINE],
+                                             group='issue size vs activity, bonds outstanding for the full window'))
     corr_parts.append(spearman_table(df, [('Par Value', 'xfund_par_share', 'par size vs same bond par share in QLTA/LQDB')],
                                      group='size consistency (not a liquidity read)'))
     # the size check fund by fund, so a QLTA-vs-LQDB scale difference can't masquerade as noise
@@ -317,9 +353,20 @@ def main():
         'note': ('LQD par vs the same bond\'s par share in QLTA/LQDB. A size-vs-size cross-fund '
                  'consistency check, NOT a liquidity or tradability read.'),
     }
-    summary['amount_outstanding'] = ('not available: FISD/Mergent offering_amt has not been pulled; the N-PORT '
-                                     'balance is the ETF holding, not issuance. The TRACE activity read is the '
-                                     'stronger test of the critique and stands on its own.')
+    if fisd is not None:
+        summary['issue_size_check'] = {
+            'rho_par_vs_issue_size': rho_of('par size vs FISD issue size'),
+            'rho_par_vs_offering_amt': rho_of('par size vs FISD offering amount'),
+            'rho_issue_size_vs_days_traded': rho_of('FISD issue size vs days traded'),
+            'rho_issue_size_vs_n_trades': rho_of('FISD issue size vs trade count'),
+            'rho_issue_size_vs_volume_capped': rho_of('FISD issue size vs volume (capped)'),
+            'n_bonds_with_issue_size': int(df['issue_size'].notna().sum()),
+            'n_with_amount_outstanding': int((df['issue_size_basis'] == 'amount_outstanding').sum()),
+            'note': 'FISD amount outstanding where known, else offering amount. The direct test of par holding ~ issue size.',
+        }
+    else:
+        summary['issue_size_check'] = ('not available: data/fisd_issue_size.csv absent (see 00e_parse_fisd_issue_size.py). '
+                                       'The N-PORT balance is the ETF holding, not issuance.')
     summary['limitations'] = [
         f'Activity window ends {window[1] if window else "n/a"}, ~7 months before the {summary["holdings_as_of"]} '
         'holdings snapshot (TRACE Enhanced embargo); liquidity is persistent over that horizon but the '
@@ -346,6 +393,12 @@ def main():
                    f'Among the top par decile, {parked.mean():.0%} of bonds traded on fewer than half of the {n_days} trading days. '
                    f'For context, LQD par agrees with another fund\'s sizing of the same bond at ρ = {size_rho:.2f} '
                    '(size consistency, not a liquidity read).')
+        if fisd is not None and summary['issue_size_check']['rho_par_vs_issue_size'] is not None:
+            isz = summary['issue_size_check']
+            act_rho = isz['rho_issue_size_vs_n_trades']
+            verdict += (f' Against true issue size (FISD, n={isz["n_bonds_with_issue_size"]:,}), par holding has '
+                        f'ρ = {isz["rho_par_vs_issue_size"]:.2f}' +
+                        (f' while issue size itself has ρ = {act_rho:.2f} with trade count.' if act_rho is not None else '.'))
     else:
         verdict = ('TRACE activity data not present; only the size-consistency check was computed '
                    f'(ρ={size_rho}), which is not a liquidity validation.')
@@ -387,6 +440,10 @@ def main():
         labels = ['Days traded', 'Trade count', 'Volume (capped)', 'Same bond in\nQLTA/LQDB (size)']
         vals = [rho_days, rho_trades, rho_vol, size_rho]
         colors = [POINT] * 3 + [ACCENT]
+        if fisd is not None and summary['issue_size_check']['rho_par_vs_issue_size'] is not None:
+            labels.append('FISD issue size\n(amount outstanding)')
+            vals.append(summary['issue_size_check']['rho_par_vs_issue_size'])
+            colors.append(ACCENT)
         bars = ax.barh(labels[::-1], [v or 0 for v in vals][::-1], color=colors[::-1], height=0.55)
         for b, v in zip(bars, [v or 0 for v in vals][::-1]):
             ax.text(b.get_width() + 0.01, b.get_y() + b.get_height() / 2, f'{v:.2f}', va='center', fontsize=9.5)

@@ -62,7 +62,7 @@
     "n": 2566,
     "note": "LQD par vs the same bond's par share in QLTA/LQDB. A size-vs-size cross-fund consistency check, NOT a liquidity or tradability read."
   },
-  "amount_outstanding": "not available: FISD/Mergent offering_amt has not been pulled; the N-PORT balance is the ETF holding, not issuance. The TRACE activity read is the stronger test of the critique and stands on its own.",
+  "issue_size_check": "not available: data/fisd_issue_size.csv absent (see 00e_parse_fisd_issue_size.py). The N-PORT balance is the ETF holding, not issuance.",
   "limitations": [
     "Activity window ends 2025-12-04, ~7 months before the 2026-07-22 holdings snapshot (TRACE Enhanced embargo); liquidity is persistent over that horizon but the measures are not contemporaneous, and bonds issued after the window drop out of the headline.",
     "Cleaning: trc_st T kept; X cancels and R reversals remove one attribute-matched original each; C corrections and Y dropped with the original T kept (no msg_seq_nb in the pull). Volume winsorised per print at $100MM. See step6_trace_cleaning.json.",

@@ -55,3 +55,16 @@ def test_load_trace_classifies_window_exposure_from_effective_date(tmp_path):
     assert pd.isna(m.loc[2, 'window_exposure'])            # no CUSIP: not in the activity universe
     assert bool(m.loc[3, 'zero_trade_bond'])                # still flagged, but not a full-window zero
     assert '1 issued after the window' in note and '1 issued inside it' in note
+
+
+def test_load_issue_size_prefers_amount_outstanding_and_is_none_when_absent(tmp_path):
+    bonds = pd.DataFrame({'bond_id': [0, 1, 2]})
+    assert step6.load_issue_size(bonds, str(tmp_path)) is None
+    (tmp_path / 'fisd_issue_size.csv').write_text(
+        'bond_id,cusip,offering_amt,amount_outstanding,offering_date\n'
+        '0,AAA,750000000,600000000,2023-05-01\n1,BBB,1000000000,,2020-02-01\n')
+    out = step6.load_issue_size(bonds, str(tmp_path)).set_index('bond_id')
+    assert out.loc[0, 'issue_size'] == 600_000_000.0      # amount outstanding when known
+    assert out.loc[1, 'issue_size'] == 1_000_000_000.0    # else the offering amount
+    assert np.isnan(out.loc[2, 'issue_size'])             # no FISD row: stays missing, not zero
+    assert out.loc[0, 'issue_size_basis'] == 'amount_outstanding' and out.loc[1, 'issue_size_basis'] == 'offering_amt'
