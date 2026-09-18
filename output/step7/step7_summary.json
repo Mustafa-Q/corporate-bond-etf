@@ -1,0 +1,46 @@
+{
+  "comparison": {
+    "without_liquidity_lambda": 0.0,
+    "with_liquidity_lambda": 1.0
+  },
+  "scores": {
+    "par": "normalised log LQD par holding (Steps 3-5 as originally run)",
+    "trace": "normalised log(1 + TRACE prints, 2025-09-04..2025-12-04), peers imputed for bonds without full-window activity (portfolio_utils.build_trace_liquidity_score)"
+  },
+  "universe_score_sources": {
+    "trace_full_window": 2604,
+    "imputed_sector_maturity": 392,
+    "trace_scaled": 139,
+    "imputed_sector": 4,
+    "imputed_universe": 4
+  },
+  "benchmark_imputed_weight_share": 0.1587,
+  "spearman_par_vs_trace_score_universe": 0.2796,
+  "per_N": {
+    "50": {
+      "par_book_trace_gain": 0.0276,
+      "trace_book_trace_gain": 0.0756,
+      "par_book_sector_cost_pp": 2.636,
+      "trace_book_sector_cost_pp": 0.771,
+      "par_book_top10_cost_pp": 0.0,
+      "trace_book_top10_cost_pp": 0.0
+    },
+    "100": {
+      "par_book_trace_gain": 0.0025,
+      "trace_book_trace_gain": 0.084,
+      "par_book_sector_cost_pp": 7.192,
+      "trace_book_sector_cost_pp": 9.669,
+      "par_book_top10_cost_pp": 3.64,
+      "trace_book_top10_cost_pp": 3.64
+    },
+    "200": {
+      "par_book_trace_gain": 0.0335,
+      "trace_book_trace_gain": 0.1256,
+      "par_book_sector_cost_pp": 5.562,
+      "trace_book_sector_cost_pp": 5.187,
+      "par_book_top10_cost_pp": 13.23,
+      "trace_book_top10_cost_pp": 13.22
+    }
+  },
+  "verdict": "bought size, not tradability: optimising on TRACE activity raises the book's real trading activity by more than 50% more than the par tilt does at every N (N=50: par book +0.028, TRACE book +0.076 TRACE score at lambda=1; N=100: par book +0.003, TRACE book +0.084 TRACE score at lambda=1; N=200: par book +0.034, TRACE book +0.126 TRACE score at lambda=1)"
+}
