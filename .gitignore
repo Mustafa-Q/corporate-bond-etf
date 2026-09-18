@@ -8,4 +8,6 @@ __pycache__/
 data/trace_*
 !data/trace_activity_raw.csv
 data/finra_*
+# per-bond Mergent FISD issue sizes are a licensed field, not a derived statistic
+data/fisd_*
 data/raw/

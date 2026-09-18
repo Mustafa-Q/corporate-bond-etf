@@ -221,8 +221,15 @@ QLTA/LQDB) is ρ = 0.53 — previously mislabelled as a proxy read, now reported
 
 ### 5.5 Still open
 
-- **Amount outstanding** (FISD/Mergent `offering_amt`) has not been pulled; the direct test of
-  "par ≈ issue size" remains a gap. The activity read is the stronger test and stands on its own.
+- **Amount outstanding** (FISD/Mergent). The pipeline side is built (2026-09-17):
+  `00e_parse_fisd_issue_size.py` parses a WRDS Mergent FISD export into `data/fisd_issue_size.csv`
+  (gitignored: a per-bond licensed field) and Step 6 adds `issue_size_check` — par vs issue size,
+  issue size vs TRACE activity — whenever the file exists. **The pull itself is pending.** On WRDS:
+  Mergent FISD → *Bond Issues* (`fisd_mergedissue`), CUSIP list = `data/lqd_cusips.txt` against
+  `COMPLETE_CUSIP`, variables `COMPLETE_CUSIP, OFFERING_AMT, OFFERING_DATE, MATURITY`; optionally
+  the *Amount Outstanding* history table (`AMOUNT_OUTSTANDING, EFFECTIVE_DATE`) for current size
+  (the parser keeps the latest dated row per CUSIP). FISD amounts are in $ thousands; the parser
+  converts (auto-detected, `--units` overrides). Save the export under `data/raw/`.
 - **Contra-party type** is not in the pull, so customer vs dealer counts are unavailable.
 - Whether to rebuild the optimiser's liquidity score on TRACE activity (Phases 2–3) is the
   user's call; nothing in Steps 3–5 was touched.
