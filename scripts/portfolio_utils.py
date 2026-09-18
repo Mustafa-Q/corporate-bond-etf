@@ -3,12 +3,27 @@ Shared utilities for benchmark target computation and portfolio evaluation.
 Used by all sampling methods (Step 2) and later liquidity/trade-off analysis
 (Steps 3-5) so every method is scored against exactly the same targets.
 """
+import os
+
 import numpy as np
 import pandas as pd
 
 AS_OF_DATE = pd.Timestamp('2026-07-22')
 MATURITY_BINS = [0, 1, 2, 3, 5, 7, 10, 15, 20, 100]
 MATURITY_LABELS = ['0-1yr', '1-2yr', '2-3yr', '3-5yr', '5-7yr', '7-10yr', '10-15yr', '15-20yr', '20yr+']
+
+SCORES = ('par', 'trace')   # liquidity scores the Step 3-5 pipeline can optimise on
+
+
+def output_paths(score, root='output'):
+    """Where a Step 3-5 run lands. 'par' is the historical layout (normalised log par
+    holding); 'trace' is the parallel layout for the TRACE-activity score, so both
+    frontiers coexist and Step 7 can compare them."""
+    if score not in SCORES:
+        raise ValueError(f'score must be one of {SCORES}, got {score!r}')
+    sfx = '' if score == 'par' else '_trace'
+    return {'weights_dir': f'{root}/liquidity{sfx}', 'sweep_csv': f'{root}/step3_liquidity_sweep{sfx}.csv',
+            'step4_dir': f'{root}/step4{sfx}', 'step5_dir': f'{root}/step5{sfx}'}
 
 
 def _prep_rating_source(path):
